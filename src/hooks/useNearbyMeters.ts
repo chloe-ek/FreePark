@@ -19,6 +19,7 @@ export function useNearbyMeters(
     let cancelled = false;
 
     async function fetchMeters() {
+      setMeters([]);
       setLoading(true);
       setError(null);
 
@@ -35,7 +36,8 @@ export function useNearbyMeters(
         return;
       }
 
-      setMeters(data ?? []);
+      const rows = (data ?? []) as NearbyMeterResult[];
+      setMeters(rows.filter((m) => m.service_status === 'active'));
       setLoading(false);
     }
 

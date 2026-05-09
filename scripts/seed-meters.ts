@@ -1,15 +1,5 @@
-/**
- * Fetches Vancouver parking meter data from the Open Data API and
- * upserts it into Supabase.  Run once (or on a schedule) to keep
- * the database in sync.
- *
- * Usage:
- *   npx ts-node scripts/seed-meters.ts
- *
- * Requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in your environment
- * (NOT the anon key — seeding requires write access).
- */
-
+/// <reference types="node" />
+import 'dotenv/config';
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -17,90 +7,73 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Vancouver Open Data field names (v2.1 API)
 interface VancouverMeter {
-  meterid: string;
+  meter_id: string;
   geo_point_2d: { lat: number; lon: number };
+  service_status: string | null;
+  credit_card: string | null;
 
-  // Weekday rates/limits
-  r_mf_9a_6p:  string | null;  // e.g. '$2.00', 'n/a'
-  r_mf_6p_10:  string | null;
-  t_mf_9a_6p:  string | null;  // e.g. '120' (minutes)
-  t_mf_6p_10:  string | null;
+  rate_9am_6pm: string | null;
+  rate_6pm_10pm: string | null;
 
-  // Saturday rates/limits
-  r_sa_9a_6p:  string | null;
-  r_sa_6p_10:  string | null;
-  t_sa_9a_6p:  string | null;
-  t_sa_6p_10:  string | null;
+  time_limit_9am_6pm: string | null;
+  time_limit_6pm_10pm: string | null;
+  time_limit_weekend_9am_6pm: string | null;
+  time_limit_weekend_6pm_10pm: string | null;
 
-  // Sunday rates/limits
-  r_su_9a_6p:  string | null;
-  r_su_6p_10:  string | null;
-  t_su_9a_6p:  string | null;
-  t_su_6p_10:  string | null;
+  prohibition_1_days: string | null;
+  prohibition_1_time: string | null;
+  prohibition_2_days: string | null;
+  prohibition_2_time: string | null;
 
-  // Prohibition windows — the API returns these as free-text strings
-  // e.g. '8:00 AM' or '08:00'
-  proh_time1:  string | null;
-  proh_time2:  string | null;
-  proh_days1:  string | null;  // e.g. 'Mon Tue Wed Thu Fri'
-  proh_days2:  string | null;
-
-  // Second prohibition window
-  proh_time3:  string | null;
-  proh_time4:  string | null;
-  proh_days3:  string | null;
-
-  // Payment & status
-  creditcard:  string | null;  // 'Yes' / 'No'
-  meterstat:   string | null;  // 'Active' / 'Inactive' / 'Removed'
+  am_rush_hours: string | null;
+  pm_rush_hours: string | null;
 }
 
-// Strips currency symbols, whitespace, and other non-numeric chars,
-// then parses to a float.  Returns null for blank/n/a/free values.
 function parseRate(raw: string | null): number | null {
   if (!raw) return null;
   const trimmed = raw.trim().toLowerCase();
   if (trimmed === "" || trimmed === "n/a" || trimmed === "free") return null;
-  // Remove $, commas, spaces — keep digits and decimal point
   const cleaned = trimmed.replace(/[^0-9.]/g, "");
-  if (cleaned === "" || cleaned === ".") return null;
+  if (!cleaned || cleaned === ".") return null;
   const n = parseFloat(cleaned);
   return isNaN(n) ? null : n;
 }
 
+// "2 Hr" → 120, "30 Min" → 30
 function parseMinutes(raw: string | null): number | null {
   if (!raw) return null;
-  const n = parseInt(raw.trim(), 10);
-  return isNaN(n) ? null : n;
+  const t = raw.trim().toLowerCase();
+  const hrMatch = t.match(/^(\d+(?:\.\d+)?)\s*hr/);
+  if (hrMatch) return Math.round(parseFloat(hrMatch[1]) * 60);
+  const minMatch = t.match(/^(\d+)\s*min/);
+  if (minMatch) return parseInt(minMatch[1], 10);
+  const plain = parseInt(t, 10);
+  return isNaN(plain) ? null : plain;
 }
 
-// Normalises '8:00 AM' → '08:00', '14:30' → '14:30', etc.
+// "7:00am" / "3:00pm" / "Noon" → "HH:MM"
 function parseTime(raw: string | null): string | null {
   if (!raw) return null;
-  const trimmed = raw.trim();
-  if (trimmed === "") return null;
+  const t = raw.trim().toLowerCase();
+  if (t === "noon") return "12:00";
+  if (t === "midnight") return "00:00";
+  const m = t.match(/^(\d{1,2}):(\d{2})\s*(am|pm)?$/);
+  if (!m) return null;
+  let h = parseInt(m[1], 10);
+  const min = m[2];
+  const period = m[3];
+  if (period === "am" && h === 12) h = 0;
+  if (period === "pm" && h !== 12) h += 12;
+  return `${String(h).padStart(2, "0")}:${min}`;
+}
 
-  // Already HH:MM 24-hour
-  const iso = trimmed.match(/^(\d{1,2}):(\d{2})$/);
-  if (iso) {
-    const h = iso[1].padStart(2, "0");
-    return `${h}:${iso[2]}`;
-  }
-
-  // 12-hour with AM/PM
-  const ampm = trimmed.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-  if (ampm) {
-    let h = parseInt(ampm[1], 10);
-    const m = ampm[2];
-    const period = ampm[3].toUpperCase();
-    if (period === "AM" && h === 12) h = 0;
-    if (period === "PM" && h !== 12) h += 12;
-    return `${String(h).padStart(2, "0")}:${m}`;
-  }
-
-  return trimmed; // return as-is if unrecognised, seed log will surface it
+// "7:00am to 1:00pm" → { start: "07:00", end: "13:00" }
+function parseProhibitionTime(raw: string | null): { start: string | null; end: string | null } {
+  if (!raw) return { start: null, end: null };
+  const parts = raw.toLowerCase().split(/\s+to\s+/);
+  if (parts.length !== 2) return { start: null, end: null };
+  return { start: parseTime(parts[0].trim()), end: parseTime(parts[1].trim()) };
 }
 
 function parseServiceStatus(raw: string | null): "active" | "inactive" | "removed" {
@@ -136,38 +109,53 @@ async function seed() {
   const meters = await fetchAllMeters();
   console.log(`Fetched ${meters.length} meters.`);
 
-  const rows = meters.map((m) => ({
-    meter_id:                m.meterid,
-    location:                `SRID=4326;POINT(${m.geo_point_2d.lon} ${m.geo_point_2d.lat})`,
-    longitude:               m.geo_point_2d.lon,
-    latitude:                m.geo_point_2d.lat,
+  const rows = meters.map((m) => {
+    const rate9to6  = parseRate(m.rate_9am_6pm);
+    const rate6to10 = parseRate(m.rate_6pm_10pm);
+    const proh1     = parseProhibitionTime(m.prohibition_1_time);
+    const proh2     = parseProhibitionTime(m.prohibition_2_time);
 
-    rate_9am_6pm:            parseRate(m.r_mf_9a_6p),
-    rate_6pm_10pm:           parseRate(m.r_mf_6p_10),
-    rate_sa_9am_6pm:         parseRate(m.r_sa_9a_6p),
-    rate_sa_6pm_10pm:        parseRate(m.r_sa_6p_10),
-    rate_su_9am_6pm:         parseRate(m.r_su_9a_6p),
-    rate_su_6pm_10pm:        parseRate(m.r_su_6p_10),
+    const amRush = parseProhibitionTime(m.am_rush_hours);
+    const pmRush = parseProhibitionTime(m.pm_rush_hours);
 
-    time_limit_9am_6pm:      parseMinutes(m.t_mf_9a_6p),
-    time_limit_6pm_10pm:     parseMinutes(m.t_mf_6p_10),
-    time_limit_sa_9am_6pm:   parseMinutes(m.t_sa_9a_6p),
-    time_limit_sa_6pm_10pm:  parseMinutes(m.t_sa_6p_10),
-    time_limit_su_9am_6pm:   parseMinutes(m.t_su_9a_6p),
-    time_limit_su_6pm_10pm:  parseMinutes(m.t_su_6p_10),
+    return {
+      meter_id:               m.meter_id,
+      location:               `SRID=4326;POINT(${m.geo_point_2d.lon} ${m.geo_point_2d.lat})`,
+      longitude:              m.geo_point_2d.lon,
+      latitude:               m.geo_point_2d.lat,
 
-    prohibition_start:        parseTime(m.proh_time1),
-    prohibition_end:          parseTime(m.proh_time2),
-    prohibition_days:         m.proh_days1 ?? null,
-    prohibition2_start:       parseTime(m.proh_time3),
-    prohibition2_end:         parseTime(m.proh_time4),
-    prohibition2_days:        m.proh_days3 ?? null,
+      rate_9am_6pm:           rate9to6,
+      rate_6pm_10pm:          rate6to10,
+      // API has no separate Sat/Sun rates — weekday rates apply to weekends too
+      rate_sa_9am_6pm:        rate9to6,
+      rate_sa_6pm_10pm:       rate6to10,
+      rate_su_9am_6pm:        rate9to6,
+      rate_su_6pm_10pm:       rate6to10,
 
-    credit_card:              m.creditcard?.trim().toLowerCase() === "yes",
-    service_status:           parseServiceStatus(m.meterstat),
-  }));
+      time_limit_9am_6pm:     parseMinutes(m.time_limit_9am_6pm),
+      time_limit_6pm_10pm:    parseMinutes(m.time_limit_6pm_10pm),
+      time_limit_sa_9am_6pm:  parseMinutes(m.time_limit_weekend_9am_6pm),
+      time_limit_sa_6pm_10pm: parseMinutes(m.time_limit_weekend_6pm_10pm),
+      time_limit_su_9am_6pm:  parseMinutes(m.time_limit_weekend_9am_6pm),
+      time_limit_su_6pm_10pm: parseMinutes(m.time_limit_weekend_6pm_10pm),
 
-  // Upsert in batches of 500
+      prohibition_start:      proh1.start,
+      prohibition_end:        proh1.end,
+      prohibition_days:       m.prohibition_1_days ?? null,
+      prohibition2_start:     proh2.start,
+      prohibition2_end:       proh2.end,
+      prohibition2_days:      m.prohibition_2_days ?? null,
+
+      am_rush_start:          amRush.start,
+      am_rush_end:            amRush.end,
+      pm_rush_start:          pmRush.start,
+      pm_rush_end:            pmRush.end,
+
+      credit_card:            m.credit_card?.trim().toLowerCase() === "yes",
+      service_status:         parseServiceStatus(m.service_status),
+    };
+  });
+
   let failed = 0;
   for (let i = 0; i < rows.length; i += 500) {
     const batch = rows.slice(i, i + 500);
