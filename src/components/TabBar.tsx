@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { GREEN } from '../theme';
 
-export type TabName = 'map' | 'schedule' | 'settings';
+export type TabName = 'map' | 'nearby' | 'settings';
 
 interface Tab {
   id: TabName;
@@ -13,9 +13,9 @@ interface Tab {
 }
 
 const TABS: Tab[] = [
-  { id: 'map',      label: 'Map',      icon: '◎', iconActive: '⊛' },
-  { id: 'schedule', label: 'Schedule', icon: '◷', iconActive: '◷' },
-  { id: 'settings', label: 'Settings', icon: '⊙', iconActive: '⊙' },
+  { id: 'map',     label: 'Map',     icon: '◎', iconActive: '⊛' },
+  { id: 'nearby',  label: 'Nearby',  icon: '≋', iconActive: '≋' },
+  { id: 'settings',label: 'Settings',icon: '⊙', iconActive: '⊙' },
 ];
 
 interface Props {
