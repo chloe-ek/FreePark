@@ -1,47 +1,102 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  ScrollView, StyleSheet, Pressable,
+  ScrollView, StyleSheet, Pressable, ActivityIndicator,
 } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
-import { SUGGESTIONS, Suggestion } from '../data/suggestions';
+import { FEATURED, SUGGESTIONS, Suggestion } from '../data/suggestions';
+import { searchPlaces, getPlaceCoords, ResolvedPlace } from '../lib/geocoding';
 import { GREEN } from '../theme';
 
 interface Props {
   onClose: () => void;
-  onSelect: (suggestion: Suggestion) => void;
+  onSelect: (place: ResolvedPlace) => void;
+}
+
+interface ApiCandidate {
+  placeId: string;
+  name: string;
+  sub: string;
 }
 
 export function SearchOverlay({ onClose, onSelect }: Props) {
   const { theme } = useTheme();
   const isDark = theme.scheme === 'dark';
   const { surface, border, text, text2, text3 } = theme.colors;
+
   const [query, setQuery] = useState('');
+  const [apiResults, setApiResults] = useState<ApiCandidate[]>([]);
+  const [selectingId, setSelectingId] = useState<string | null>(null);
+  const [searching, setSearching] = useState(false);
+
   const inputRef = useRef<TextInput>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  const filtered = query.length > 0
-    ? SUGGESTIONS.filter(
-        (s) =>
-          s.name.toLowerCase().includes(query.toLowerCase()) ||
-          s.sub.toLowerCase().includes(query.toLowerCase())
-      )
-    : SUGGESTIONS;
+  function handleQueryChange(text: string) {
+    setQuery(text);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (text.length < 2) {
+      setApiResults([]);
+      setSearching(false);
+      return;
+    }
+
+    // Check local dataset first — only call Places API if local results < 3
+    const q = text.toLowerCase();
+    const localHits = SUGGESTIONS.filter(
+      (s) => s.name.toLowerCase().includes(q) || s.sub.toLowerCase().includes(q),
+    );
+
+    if (localHits.length >= 3) {
+      setApiResults([]);
+      setSearching(false);
+      return;
+    }
+
+    setSearching(true);
+    debounceRef.current = setTimeout(async () => {
+      const results = await searchPlaces(text);
+      setApiResults(results);
+      setSearching(false);
+    }, 350);
+  }
+
+  async function handleSelectSuggestion(s: Suggestion) {
+    onSelect({ name: s.name, sub: s.sub, lat: s.lat, lng: s.lng });
+    onClose();
+  }
+
+  async function handleSelectApiResult(candidate: ApiCandidate) {
+    if (selectingId) return;
+    setSelectingId(candidate.placeId);
+    try {
+      const coords = await getPlaceCoords(candidate.placeId);
+      if (!coords) return;
+      onSelect({ name: candidate.name, sub: candidate.sub, lat: coords.lat, lng: coords.lng });
+      onClose();
+    } finally {
+      setSelectingId(null);
+    }
+  }
+
+  const showSuggestions = query.length < 2;
+
+  const localResults: Suggestion[] = showSuggestions
+    ? FEATURED
+    : SUGGESTIONS.filter((s) => {
+        const q = query.toLowerCase();
+        return s.name.toLowerCase().includes(q) || s.sub.toLowerCase().includes(q);
+      });
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      {/* Backdrop */}
       <Pressable style={styles.backdrop} onPress={onClose} />
 
-      {/* Panel */}
-      <View style={[
-        styles.panel,
-        { backgroundColor: surface, borderBottomColor: border },
-      ]}>
-        {/* Input row */}
+      <View style={[styles.panel, { backgroundColor: surface, borderBottomColor: border }]}>
         <View style={styles.inputRow}>
           <Text style={[styles.searchIcon, { color: isDark ? 'rgba(255,255,255,0.4)' : '#bbb' }]}>
             ⌕
@@ -50,31 +105,30 @@ export function SearchOverlay({ onClose, onSelect }: Props) {
             ref={inputRef}
             style={[styles.input, { color: text }]}
             value={query}
-            onChangeText={setQuery}
+            onChangeText={handleQueryChange}
             placeholder="Search area or address…"
             placeholderTextColor={text3}
             returnKeyType="search"
           />
-          <TouchableOpacity onPress={onClose} hitSlop={8}>
-            <Text style={styles.cancel}>Cancel</Text>
-          </TouchableOpacity>
+          {searching
+            ? <ActivityIndicator size="small" color={text3} />
+            : <TouchableOpacity onPress={onClose} hitSlop={8}>
+                <Text style={styles.cancel}>Cancel</Text>
+              </TouchableOpacity>
+          }
         </View>
 
-        {/* Section label */}
         <Text style={[styles.sectionLabel, { color: text3 }]}>
-          {query ? 'Results' : 'Nearby areas'}
+          {showSuggestions ? 'Nearby areas' : 'Results'}
         </Text>
 
-        {/* Results */}
         <ScrollView keyboardShouldPersistTaps="handled" style={styles.list}>
-          {filtered.map((s, i) => (
+          {/* Local results (always shown first) */}
+          {localResults.map((s, i) => (
             <TouchableOpacity
-              key={i}
-              style={[
-                styles.row,
-                i < filtered.length - 1 && { borderBottomWidth: 1, borderBottomColor: border },
-              ]}
-              onPress={() => { onSelect(s); onClose(); }}
+              key={`local-${i}`}
+              style={[styles.row, { borderBottomWidth: 1, borderBottomColor: border }]}
+              onPress={() => handleSelectSuggestion(s)}
               activeOpacity={0.7}
             >
               <View style={[styles.rowIcon, { backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7' }]}>
@@ -84,11 +138,34 @@ export function SearchOverlay({ onClose, onSelect }: Props) {
                 <Text style={[styles.rowName, { color: text }]}>{s.name}</Text>
                 <Text style={[styles.rowSub, { color: text2 }]}>{s.sub}</Text>
               </View>
-              {s.freeCount > 0 && (
-                <Text style={styles.freeBadge}>{s.freeCount} free</Text>
-              )}
             </TouchableOpacity>
           ))}
+
+          {/* Places API fallback — only shown when local results < 3 */}
+          {!showSuggestions && apiResults.map((c, i) => (
+            <TouchableOpacity
+              key={c.placeId}
+              style={[styles.row, i < apiResults.length - 1 && { borderBottomWidth: 1, borderBottomColor: border }]}
+              onPress={() => handleSelectApiResult(c)}
+              activeOpacity={0.7}
+              disabled={selectingId === c.placeId}
+            >
+              <View style={[styles.rowIcon, { backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7' }]}>
+                {selectingId === c.placeId
+                  ? <ActivityIndicator size="small" color={GREEN} />
+                  : <Text style={styles.rowIconText}>📍</Text>
+                }
+              </View>
+              <View style={styles.rowBody}>
+                <Text style={[styles.rowName, { color: text }]}>{c.name}</Text>
+                <Text style={[styles.rowSub, { color: text2 }]}>{c.sub}</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+
+          {!showSuggestions && localResults.length === 0 && apiResults.length === 0 && !searching && (
+            <Text style={[styles.empty, { color: text3 }]}>No results</Text>
+          )}
         </ScrollView>
       </View>
     </View>
@@ -158,14 +235,5 @@ const styles = StyleSheet.create({
   rowBody: { flex: 1 },
   rowName: { fontSize: 13, fontWeight: '500' },
   rowSub: { fontSize: 11 },
-  freeBadge: {
-    fontSize: 10,
-    fontWeight: '500',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 100,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(94,194,106,0.15)',
-    color: GREEN,
-  },
+  empty: { fontSize: 13, textAlign: 'center', paddingVertical: 16 },
 });
