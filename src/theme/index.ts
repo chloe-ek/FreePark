@@ -1,7 +1,4 @@
 export const GREEN = '#5EC26A';
-export const GREEN_DIM = 'rgba(94,194,106,0.18)';
-export const GREEN_GLOW = 'rgba(94,194,106,0.35)';
-export const BLUE = '#4a9eff';
 
 export type ColorScheme = 'light' | 'dark';
 

@@ -1,46 +1,61 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const STORAGE_KEY = '@freepark_settings';
 
 export interface Settings {
-  showFreeOnly: boolean;
-  weekendMode: boolean;
-  notifyWhenFree: boolean;
   radiusMeters: number;
 }
 
 interface SettingsContextValue {
   settings: Settings;
-  setShowFreeOnly: (v: boolean) => void;
-  setWeekendMode: (v: boolean) => void;
-  setNotifyWhenFree: (v: boolean) => void;
   setRadiusMeters: (v: number) => void;
 }
 
 const DEFAULT: Settings = {
-  showFreeOnly: false,
-  weekendMode: false,
-  notifyWhenFree: true,
   radiusMeters: 400,
 };
 
 const SettingsContext = createContext<SettingsContextValue>({
   settings: DEFAULT,
-  setShowFreeOnly: () => {},
-  setWeekendMode: () => {},
-  setNotifyWhenFree: () => {},
   setRadiusMeters: () => {},
 });
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<Settings>(DEFAULT);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(STORAGE_KEY)
+      .then((raw) => {
+        if (raw) {
+          try {
+            const saved = JSON.parse(raw) as Partial<Settings>;
+            setSettings((s) => ({ ...s, ...saved }));
+          } catch {
+            console.warn('[SettingsContext] Stored settings corrupted, using defaults');
+          }
+        }
+        setLoaded(true);
+      })
+      .catch(() => setLoaded(true));
+  }, []);
+
+  // Sync to storage only after initial load to avoid overwriting with defaults
+  useEffect(() => {
+    if (!loaded) return;
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  }, [settings, loaded]);
+
+  function update(patch: Partial<Settings>) {
+    setSettings((prev) => ({ ...prev, ...patch }));
+  }
 
   return (
     <SettingsContext.Provider
       value={{
         settings,
-        setShowFreeOnly: (v) => setSettings((s) => ({ ...s, showFreeOnly: v })),
-        setWeekendMode: (v) => setSettings((s) => ({ ...s, weekendMode: v })),
-        setNotifyWhenFree: (v) => setSettings((s) => ({ ...s, notifyWhenFree: v })),
-        setRadiusMeters: (v) => setSettings((s) => ({ ...s, radiusMeters: v })),
+        setRadiusMeters: (v) => update({ radiusMeters: v }),
       }}
     >
       {children}

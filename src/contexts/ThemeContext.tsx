@@ -1,6 +1,9 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useColorScheme } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Theme, LIGHT_THEME, DARK_THEME } from '../theme';
+
+const STORAGE_KEY = '@freepark_theme';
 
 interface ThemeContextValue {
   theme: Theme;
@@ -16,13 +19,24 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const systemScheme = useColorScheme();
   const [override, setOverride] = useState<'light' | 'dark' | null>(null);
 
+  useEffect(() => {
+    AsyncStorage.getItem(STORAGE_KEY)
+      .then((saved) => {
+        if (saved === 'light' || saved === 'dark') setOverride(saved);
+      })
+      .catch(() => {}); // storage unavailable — use system theme
+  }, []);
+
   const scheme = override ?? systemScheme ?? 'light';
   const theme = scheme === 'dark' ? DARK_THEME : LIGHT_THEME;
 
   function toggleTheme() {
     setOverride((prev) => {
-      if (prev === null) return scheme === 'dark' ? 'light' : 'dark';
-      return prev === 'dark' ? 'light' : 'dark';
+      const next = prev === null
+        ? (scheme === 'dark' ? 'light' : 'dark')
+        : (prev === 'dark' ? 'light' : 'dark');
+      AsyncStorage.setItem(STORAGE_KEY, next);
+      return next;
     });
   }
 
