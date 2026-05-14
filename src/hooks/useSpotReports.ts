@@ -1,0 +1,86 @@
+import { useEffect, useState, useCallback } from 'react';
+import { supabase } from '../lib/supabase';
+
+export interface SpotReport {
+  id: string;
+  meter_id: string;
+  report_type: 'no_vacancy';
+  reported_at: string;
+  expires_at: string;
+}
+
+const REPORT_COOLDOWN_MS = 5 * 60 * 1000;
+const reportCooldowns = new Map<string, number>();
+
+// Returns active (non-expired) reports, updated in real time.
+export function useSpotReports(meterIds: string[]) {
+  const [reports, setReports] = useState<SpotReport[]>([]);
+
+  const fetchActive = useCallback(async () => {
+    if (meterIds.length === 0) return;
+    const { data } = await supabase
+      .from('spot_reports')
+      .select('*')
+      .in('meter_id', meterIds)
+      .gt('expires_at', new Date().toISOString())
+      .order('reported_at', { ascending: false });
+    setReports((data as SpotReport[]) ?? []);
+  }, [meterIds.join(',')]);
+
+  useEffect(() => {
+    fetchActive();
+
+    const channel = supabase
+      .channel('spot-reports-realtime')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'spot_reports' },
+        (payload) => {
+          const r = payload.new as SpotReport;
+          if (!meterIds.includes(r.meter_id)) return;
+          setReports((prev) => {
+            // Remove any older report for the same meter, add the new one
+            const filtered = prev.filter((p) => p.meter_id !== r.meter_id);
+            return [r, ...filtered];
+          });
+        },
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchActive]);
+
+  // Purge expired reports every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = new Date().toISOString();
+      setReports((prev) => prev.filter((r) => r.expires_at > now));
+    }, 60_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  function getReport(meterId: string): SpotReport | undefined {
+    const now = new Date().toISOString();
+    return reports.find((r) => r.meter_id === meterId && r.expires_at > now);
+  }
+
+  async function submitReport(meterId: string, type: SpotReport['report_type']): Promise<boolean> {
+    const lastTime = reportCooldowns.get(meterId);
+    if (lastTime !== undefined && Date.now() - lastTime < REPORT_COOLDOWN_MS) {
+      return false;
+    }
+    try {
+      const { error } = await supabase.from('spot_reports').insert({
+        meter_id: meterId,
+        report_type: type,
+      });
+      if (error) return false;
+      reportCooldowns.set(meterId, Date.now());
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  return { getReport, submitReport };
+}

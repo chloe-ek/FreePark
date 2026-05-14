@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { callRpc } from '../lib/supabase';
 import type { MotorcycleParkingResult } from '../types/database';
 
 export function useNearbyMotorcycleParking(
@@ -10,6 +10,7 @@ export function useNearbyMotorcycleParking(
 ) {
   const [spots, setSpots] = useState<MotorcycleParkingResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!enabled || latitude == null || longitude == null) {
@@ -21,21 +22,29 @@ export function useNearbyMotorcycleParking(
     const lng = longitude;
     let cancelled = false;
 
-    async function fetch() {
+    async function fetchSpots() {
       setSpots([]);
       setLoading(true);
-      const { data, error } = await supabase.rpc(
-        'get_nearby_motorcycle_parking' as never,
-        { user_lat: lat, user_lng: lng, radius_meters: radiusMeters } as never,
+      setError(null);
+
+      const { data, error: rpcError } = await callRpc<MotorcycleParkingResult>(
+        'get_nearby_motorcycle_parking',
+        { user_lat: lat, user_lng: lng, radius_meters: radiusMeters },
       );
+
       if (cancelled) return;
-      if (!error) setSpots((data ?? []) as MotorcycleParkingResult[]);
+
+      if (rpcError) {
+        setError(rpcError.message);
+      } else {
+        setSpots(data ?? []);
+      }
       setLoading(false);
     }
 
-    fetch();
+    fetchSpots();
     return () => { cancelled = true; };
   }, [latitude, longitude, radiusMeters, enabled]);
 
-  return { spots, loading };
+  return { spots, loading, error };
 }

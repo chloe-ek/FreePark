@@ -1,4 +1,4 @@
-import type { ParkingMeter, NearbyMeterResult } from "../types/database";
+import type { ParkingMeter, NearbyMeterResult, MotorcycleParkingResult } from "../types/database";
 
 type Meter = ParkingMeter | NearbyMeterResult;
 
@@ -138,15 +138,18 @@ export function formatMinutes(mins: number): string {
 
 export function getFreeAfterTime(meters: Meter[]): string | null {
   if (meters.length === 0) return null;
-  const anyPaidEvening = meters.some(
-    (m) => m.rate_6pm_10pm != null && m.rate_6pm_10pm > 0,
-  );
-  if (anyPaidEvening) return '10 PM';
-  const anyPaidDay = meters.some(
-    (m) => m.rate_9am_6pm != null && m.rate_9am_6pm > 0,
-  );
-  if (anyPaidDay) return '6 PM';
-  return null; // all meters have no paid slots
+  const dow = new Date().getDay();
+  const isSat = dow === 6;
+  const isSun = dow === 0;
+
+  const getEveningRate = (m: Meter) =>
+    isSat ? m.rate_sa_6pm_10pm : isSun ? m.rate_su_6pm_10pm : m.rate_6pm_10pm;
+  const getDayRate = (m: Meter) =>
+    isSat ? m.rate_sa_9am_6pm : isSun ? m.rate_su_9am_6pm : m.rate_9am_6pm;
+
+  if (meters.some((m) => { const r = getEveningRate(m); return r != null && r > 0; })) return '10 PM';
+  if (meters.some((m) => { const r = getDayRate(m); return r != null && r > 0; })) return '6 PM';
+  return null;
 }
 
 function fmt12h(hhmm: string): string {
@@ -178,6 +181,7 @@ export function getRushHours(meter: Meter): RushHourWindow[] {
 }
 
 export function getCurrentRateLabel(meter: Meter): string {
+  if (isMeterProhibited(meter)) return "No parking";
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const { rate, limit } = getRateAndLimit(meter, currentMinutes, now.getDay());
@@ -185,4 +189,37 @@ export function getCurrentRateLabel(meter: Meter): string {
   if (rate == null) return "Free";
   if (rate === 0)   return `Free${limit ? ` (${limit} min)` : ""}`;
   return `$${rate.toFixed(2)}/hr${limit ? ` · ${limit} min` : ""}`;
+}
+
+// ─── Motorcycle parking ───────────────────────────────────────────────────────
+
+function getMotoRateAndLimit(
+  spot: MotorcycleParkingResult,
+  currentMinutes: number,
+  dayOfWeek: number,
+): { rate: number | null; limit: number | null } {
+  const is9to6  = currentMinutes >= 9 * 60 && currentMinutes < 18 * 60;
+  const is6to10 = currentMinutes >= 18 * 60 && currentMinutes < 22 * 60;
+
+  if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+    if (is9to6)  return { rate: spot.rate_9am_6pm,      limit: spot.time_limit_9am_6pm };
+    if (is6to10) return { rate: spot.rate_6pm_10pm,     limit: spot.time_limit_6pm_10pm };
+  } else if (dayOfWeek === 6) {
+    if (is9to6)  return { rate: spot.rate_sa_9am_6pm,   limit: spot.time_limit_sa_9am_6pm };
+    if (is6to10) return { rate: spot.rate_sa_6pm_10pm,  limit: spot.time_limit_sa_6pm_10pm };
+  } else {
+    if (is9to6)  return { rate: spot.rate_su_9am_6pm,   limit: spot.time_limit_su_9am_6pm };
+    if (is6to10) return { rate: spot.rate_su_6pm_10pm,  limit: spot.time_limit_su_6pm_10pm };
+  }
+  return { rate: null, limit: null };
+}
+
+export function getMotoCurrentRate(spot: MotorcycleParkingResult): number | null {
+  const now = new Date();
+  return getMotoRateAndLimit(spot, now.getHours() * 60 + now.getMinutes(), now.getDay()).rate;
+}
+
+export function getMotoCurrentTimeLimit(spot: MotorcycleParkingResult): number | null {
+  const now = new Date();
+  return getMotoRateAndLimit(spot, now.getHours() * 60 + now.getMinutes(), now.getDay()).limit;
 }

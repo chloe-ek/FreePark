@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { callRpc } from '../lib/supabase';
 import type { NearbyMeterResult } from '../types/database';
 
 export function useNearbyMeters(
   latitude: number | null,
   longitude: number | null,
   radiusMeters: number = 500,
+  enabled = true,
 ) {
   const [meters, setMeters] = useState<NearbyMeterResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!enabled) { setMeters([]); setLoading(false); return; }
     if (latitude == null || longitude == null) return;
 
     const lat = latitude;
@@ -23,9 +25,9 @@ export function useNearbyMeters(
       setLoading(true);
       setError(null);
 
-      const { data, error: rpcError } = await supabase.rpc(
-        'get_nearby_meters' as never,
-        { user_lat: lat, user_lng: lng, radius_meters: radiusMeters } as never,
+      const { data, error: rpcError } = await callRpc<NearbyMeterResult>(
+        'get_nearby_meters',
+        { user_lat: lat, user_lng: lng, radius_meters: radiusMeters },
       );
 
       if (cancelled) return;
@@ -36,14 +38,13 @@ export function useNearbyMeters(
         return;
       }
 
-      const rows = (data ?? []) as NearbyMeterResult[];
-      setMeters(rows.filter((m) => m.service_status === 'active'));
+      setMeters(data ?? []);
       setLoading(false);
     }
 
     fetchMeters();
     return () => { cancelled = true; };
-  }, [latitude, longitude, radiusMeters]);
+  }, [latitude, longitude, radiusMeters, enabled]);
 
   return { meters, loading, error };
 }
