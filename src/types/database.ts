@@ -1,57 +1,156 @@
-export type Json = string | number | boolean | null | { [key: string]: Json } | Json[];
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
-export interface Database {
+export type Database = {
+  __InternalSupabase: {
+    PostgrestVersion: "14.5";
+  };
   public: {
     Tables: {
       parking_meters: {
-        Row: ParkingMeter;
-        Insert: Omit<ParkingMeter, "id" | "created_at">;
-        Update: Partial<Omit<ParkingMeter, "id" | "created_at">>;
+        Row: {
+          am_rush_end: string | null;
+          am_rush_start: string | null;
+          created_at: string;
+          credit_card: boolean;
+          id: number;
+          latitude: number;
+          longitude: number;
+          meter_id: string;
+          pm_rush_end: string | null;
+          pm_rush_start: string | null;
+          prohibition_days: string | null;
+          prohibition_end: string | null;
+          prohibition_start: string | null;
+          prohibition2_days: string | null;
+          prohibition2_end: string | null;
+          prohibition2_start: string | null;
+          rate_6pm_10pm: number | null;
+          rate_9am_6pm: number | null;
+          rate_sa_6pm_10pm: number | null;
+          rate_sa_9am_6pm: number | null;
+          rate_su_6pm_10pm: number | null;
+          rate_su_9am_6pm: number | null;
+          service_status: string;
+          time_limit_6pm_10pm: number | null;
+          time_limit_9am_6pm: number | null;
+          time_limit_sa_6pm_10pm: number | null;
+          time_limit_sa_9am_6pm: number | null;
+          time_limit_su_6pm_10pm: number | null;
+          time_limit_su_9am_6pm: number | null;
+          updated_at: string;
+        };
+        Insert: {
+          am_rush_end?: string | null;
+          am_rush_start?: string | null;
+          created_at?: string;
+          credit_card?: boolean;
+          latitude: number;
+          longitude: number;
+          meter_id: string;
+          pm_rush_end?: string | null;
+          pm_rush_start?: string | null;
+          prohibition_days?: string | null;
+          prohibition_end?: string | null;
+          prohibition_start?: string | null;
+          prohibition2_days?: string | null;
+          prohibition2_end?: string | null;
+          prohibition2_start?: string | null;
+          rate_6pm_10pm?: number | null;
+          rate_9am_6pm?: number | null;
+          rate_sa_6pm_10pm?: number | null;
+          rate_sa_9am_6pm?: number | null;
+          rate_su_6pm_10pm?: number | null;
+          rate_su_9am_6pm?: number | null;
+          service_status?: string;
+          time_limit_6pm_10pm?: number | null;
+          time_limit_9am_6pm?: number | null;
+          time_limit_sa_6pm_10pm?: number | null;
+          time_limit_sa_9am_6pm?: number | null;
+          time_limit_su_6pm_10pm?: number | null;
+          time_limit_su_9am_6pm?: number | null;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['parking_meters']['Insert']>;
+        Relationships: [];
+      };
+      spot_reports: {
+        Row: {
+          expires_at: string;
+          id: string;
+          meter_id: string;
+          report_type: string;
+          reported_at: string;
+        };
+        Insert: {
+          expires_at?: string;
+          id?: string;
+          meter_id: string;
+          report_type?: string;
+          reported_at?: string;
+        };
+        Update: {
+          expires_at?: string;
+          id?: string;
+          meter_id?: string;
+          report_type?: string;
+          reported_at?: string;
+        };
+        Relationships: [];
       };
     };
+    Views: Record<never, never>;
     Functions: {
       get_nearby_meters: {
-        Args: { user_lat: number; user_lng: number; radius_meters: number };
+        Args: { user_lat: number; user_lng: number; radius_meters?: number };
         Returns: NearbyMeterResult[];
       };
+      get_nearby_disability_parking: {
+        Args: { user_lat: number; user_lng: number; radius_meters?: number };
+        Returns: DisabilityParkingResult[];
+      };
+      get_nearby_motorcycle_parking: {
+        Args: { user_lat: number; user_lng: number; radius_meters?: number };
+        Returns: MotorcycleParkingResult[];
+      };
+      get_nearby_ev_charging: {
+        Args: { user_lat: number; user_lng: number; radius_meters?: number };
+        Returns: EvChargingResult[];
+      };
     };
+    Enums: Record<never, never>;
+    CompositeTypes: Record<never, never>;
   };
-}
+};
+
+// ─── App-level types ──────────────────────────────────────────────────────────
 
 export interface ParkingMeter {
   id: number;
   meter_id: string;
   latitude: number;
   longitude: number;
-  // Weekday rates (CAD/hr); 0 = free, null = unmetered at this time
   rate_9am_6pm: number | null;
   rate_6pm_10pm: number | null;
-  // Weekend rates
   rate_sa_9am_6pm: number | null;
   rate_sa_6pm_10pm: number | null;
   rate_su_9am_6pm: number | null;
   rate_su_6pm_10pm: number | null;
-  // Weekday time limits (minutes)
   time_limit_9am_6pm: number | null;
   time_limit_6pm_10pm: number | null;
-  // Weekend time limits
   time_limit_sa_9am_6pm: number | null;
   time_limit_sa_6pm_10pm: number | null;
   time_limit_su_9am_6pm: number | null;
   time_limit_su_6pm_10pm: number | null;
-  // First prohibition window
-  prohibition_start: string | null;   // "HH:MM"
+  prohibition_start: string | null;
   prohibition_end: string | null;
-  prohibition_days: string | null;    // "Mon Tue Wed Thu Fri"
-  // Second prohibition window
+  prohibition_days: string | null;
   prohibition2_start: string | null;
   prohibition2_end: string | null;
   prohibition2_days: string | null;
-  // Rush hour restrictions — no parking allowed (Mon–Fri), tow risk
-  am_rush_start: string | null;   // "HH:MM"
-  am_rush_end:   string | null;
+  am_rush_start: string | null;
+  am_rush_end: string | null;
   pm_rush_start: string | null;
-  pm_rush_end:   string | null;
+  pm_rush_end: string | null;
   credit_card: boolean;
   service_status: "active" | "inactive" | "removed";
   created_at: string;

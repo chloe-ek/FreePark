@@ -46,6 +46,12 @@ create table if not exists public.parking_meters (
   prohibition2_end        text,
   prohibition2_days       text,
 
+  -- Rush-hour no-parking windows (Mon–Fri only, enforced in app logic)
+  am_rush_start           text,   -- e.g. '07:00'
+  am_rush_end             text,   -- e.g. '09:00'
+  pm_rush_start           text,   -- e.g. '16:00'
+  pm_rush_end             text,   -- e.g. '18:30'
+
   -- Payment & operational metadata
   credit_card             boolean not null default false,
   service_status          text not null default 'active'
@@ -113,6 +119,10 @@ returns table (
   prohibition2_start      text,
   prohibition2_end        text,
   prohibition2_days       text,
+  am_rush_start           text,
+  am_rush_end             text,
+  pm_rush_start           text,
+  pm_rush_end             text,
   credit_card             boolean,
   service_status          text,
   distance_meters         double precision
@@ -143,6 +153,10 @@ as $$
     m.prohibition2_start,
     m.prohibition2_end,
     m.prohibition2_days,
+    m.am_rush_start,
+    m.am_rush_end,
+    m.pm_rush_start,
+    m.pm_rush_end,
     m.credit_card,
     m.service_status,
     st_distance(
@@ -167,6 +181,27 @@ alter table public.parking_meters enable row level security;
 
 create policy "public read"
   on public.parking_meters
+  for select
+  using (true);
+
+alter table public.disability_parking enable row level security;
+
+create policy "public read"
+  on public.disability_parking
+  for select
+  using (true);
+
+alter table public.motorcycle_parking enable row level security;
+
+create policy "public read"
+  on public.motorcycle_parking
+  for select
+  using (true);
+
+alter table public.ev_charging_stations enable row level security;
+
+create policy "public read"
+  on public.ev_charging_stations
   for select
   using (true);
 
