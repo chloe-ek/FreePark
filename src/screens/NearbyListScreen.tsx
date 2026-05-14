@@ -23,6 +23,8 @@ import {
   minutesUntilFree,
   formatMinutes,
   getRushHours,
+  getMotoCurrentRate,
+  getMotoCurrentTimeLimit,
 } from '../utils/parkingUtils';
 import { GREEN } from '../theme';
 
@@ -54,44 +56,6 @@ type AnySpot =
   | { kind: 'motorcycle'; data: MotorcycleParkingResult }
   | { kind: 'ev';         data: EvChargingResult };
 
-function getMotoCurrentRate(spot: MotorcycleParkingResult): number | null {
-  const now = new Date();
-  const day = now.getDay();
-  const mins = now.getHours() * 60 + now.getMinutes();
-  const is9to6  = mins >= 540 && mins < 1080;
-  const is6to10 = mins >= 1080 && mins < 1320;
-  if (day >= 1 && day <= 5) {
-    if (is9to6)  return spot.rate_9am_6pm;
-    if (is6to10) return spot.rate_6pm_10pm;
-  } else if (day === 6) {
-    if (is9to6)  return spot.rate_sa_9am_6pm;
-    if (is6to10) return spot.rate_sa_6pm_10pm;
-  } else {
-    if (is9to6)  return spot.rate_su_9am_6pm;
-    if (is6to10) return spot.rate_su_6pm_10pm;
-  }
-  return null;
-}
-
-function getMotoCurrentTimeLimit(spot: MotorcycleParkingResult): number | null {
-  const now = new Date();
-  const day = now.getDay();
-  const mins = now.getHours() * 60 + now.getMinutes();
-  const is9to6  = mins >= 540 && mins < 1080;
-  const is6to10 = mins >= 1080 && mins < 1320;
-  if (day >= 1 && day <= 5) {
-    if (is9to6)  return spot.time_limit_9am_6pm;
-    if (is6to10) return spot.time_limit_6pm_10pm;
-  } else if (day === 6) {
-    if (is9to6)  return spot.time_limit_sa_9am_6pm;
-    if (is6to10) return spot.time_limit_sa_6pm_10pm;
-  } else {
-    if (is9to6)  return spot.time_limit_su_9am_6pm;
-    if (is6to10) return spot.time_limit_su_6pm_10pm;
-  }
-  return null;
-}
-
 function getSortRate(spot: AnySpot): number {
   switch (spot.kind) {
     case 'meter': {
@@ -115,39 +79,37 @@ export function NearbyListScreen({ onNavigate, onSelectMeter }: Props) {
   const { latitude, longitude } = useLocation();
   const { bg, surface, border, text, text2, text3 } = theme.colors;
 
-  const [sortBy, setSortBy] = useState<SortKey>('distance');
-  const [activeKinds, setActiveKinds] = useState<Set<SpotKind>>(
-    new Set(['meter', 'disability', 'motorcycle', 'ev'])
-  );
+  const [sortBy, setSortBy] = useState<SortKey>('rate');
+  const [activeKind, setActiveKind] = useState<SpotKind>('meter');
+  const [paymentFilter, setPaymentFilter] = useState<'any' | 'card' | 'cash'>('any');
 
-  const { meters, loading: loadingMeters }       = useNearbyMeters(latitude, longitude, settings.radiusMeters);
-  const { spots: accSpots, loading: loadingAcc } = useNearbyDisabilityParking(latitude, longitude, settings.radiusMeters);
-  const { spots: motoSpots, loading: loadingMoto } = useNearbyMotorcycleParking(latitude, longitude, settings.radiusMeters);
-  const { stations: evStations, loading: loadingEv } = useNearbyEvCharging(latitude, longitude, settings.radiusMeters);
+  const { meters, loading: loadingMeters, error: metersError }          = useNearbyMeters(latitude, longitude, settings.radiusMeters, activeKind === 'meter');
+  const { spots: accSpots, loading: loadingAcc, error: accError }       = useNearbyDisabilityParking(latitude, longitude, settings.radiusMeters, activeKind === 'disability');
+  const { spots: motoSpots, loading: loadingMoto, error: motoError }    = useNearbyMotorcycleParking(latitude, longitude, settings.radiusMeters, activeKind === 'motorcycle');
+  const { stations: evStations, loading: loadingEv, error: evError }    = useNearbyEvCharging(latitude, longitude, settings.radiusMeters, activeKind === 'ev');
 
-  const loading = loadingMeters || loadingAcc || loadingMoto || loadingEv;
-
-  function toggleKind(k: SpotKind) {
-    setActiveKinds((prev) => {
-      const next = new Set(prev);
-      if (next.has(k)) { if (next.size > 1) next.delete(k); }
-      else next.add(k);
-      return next;
-    });
-  }
+  const loading  = loadingMeters || loadingAcc || loadingMoto || loadingEv;
+  const anyError = metersError || accError || motoError || evError;
 
   const combined = useMemo<AnySpot[]>(() => {
-    const all: AnySpot[] = [
-      ...(activeKinds.has('meter')      ? meters.map((d): AnySpot => ({ kind: 'meter', data: d })) : []),
-      ...(activeKinds.has('disability') ? accSpots.map((d): AnySpot => ({ kind: 'disability', data: d })) : []),
-      ...(activeKinds.has('motorcycle') ? motoSpots.map((d): AnySpot => ({ kind: 'motorcycle', data: d })) : []),
-      ...(activeKinds.has('ev')         ? evStations.map((d): AnySpot => ({ kind: 'ev', data: d })) : []),
-    ];
-    if (sortBy === 'distance') {
-      return all.sort((a, b) => a.data.distance_meters - b.data.distance_meters);
+    let all: AnySpot[];
+    switch (activeKind) {
+      case 'meter':      all = meters.map((d): AnySpot => ({ kind: 'meter', data: d })); break;
+      case 'disability': all = accSpots.map((d): AnySpot => ({ kind: 'disability', data: d })); break;
+      case 'motorcycle': all = motoSpots.map((d): AnySpot => ({ kind: 'motorcycle', data: d })); break;
+      case 'ev':         all = evStations.map((d): AnySpot => ({ kind: 'ev', data: d })); break;
     }
-    return all.sort((a, b) => getSortRate(a) - getSortRate(b));
-  }, [meters, accSpots, motoSpots, evStations, sortBy, activeKinds]);
+
+    const filtered = paymentFilter === 'any' ? all : all.filter((spot) => {
+      if (spot.kind !== 'meter' && spot.kind !== 'motorcycle') return true;
+      return paymentFilter === 'card' ? spot.data.credit_card : !spot.data.credit_card;
+    });
+
+    if (sortBy === 'distance') {
+      return filtered.sort((a, b) => a.data.distance_meters - b.data.distance_meters);
+    }
+    return filtered.sort((a, b) => getSortRate(a) - getSortRate(b));
+  }, [meters, accSpots, motoSpots, evStations, sortBy, activeKind, paymentFilter]);
 
   function handleSelect(spot: AnySpot) {
     if (spot.kind === 'meter') {
@@ -258,16 +220,16 @@ export function NearbyListScreen({ onNavigate, onSelectMeter }: Props) {
         <Text style={[styles.subtitle, { color: text2 }]}>within {settings.radiusMeters}m</Text>
       </View>
 
-      {/* Kind filter */}
+      {/* Row 1 — kind + sort */}
       <View style={[styles.kindBar, { backgroundColor: surface, borderBottomColor: border }]}>
         {(['meter', 'disability', 'motorcycle', 'ev'] as SpotKind[]).map((k) => {
-          const active = activeKinds.has(k);
+          const active = activeKind === k;
           const color = KIND_COLORS[k];
           return (
             <TouchableOpacity
               key={k}
               style={[styles.kindChip, active && { borderBottomColor: color, borderBottomWidth: 2 }]}
-              onPress={() => toggleKind(k)}
+              onPress={() => setActiveKind(k)}
               activeOpacity={0.7}
             >
               <Text style={[styles.kindChipLabel, { color: active ? color : text3 }]}>
@@ -277,7 +239,7 @@ export function NearbyListScreen({ onNavigate, onSelectMeter }: Props) {
           );
         })}
         <View style={styles.kindDivider} />
-        {(['distance', 'rate'] as const).map((s) => (
+        {(['rate', 'distance'] as const).map((s) => (
           <TouchableOpacity
             key={s}
             style={[styles.kindChip, sortBy === s && { borderBottomColor: GREEN, borderBottomWidth: 2 }]}
@@ -291,8 +253,35 @@ export function NearbyListScreen({ onNavigate, onSelectMeter }: Props) {
         ))}
       </View>
 
+      {/* Row 2 — payment filter */}
+      <View style={[styles.paymentBar, { borderBottomColor: border }]}>
+        {([
+          { key: 'any',  label: 'All'  },
+          { key: 'card', label: '💳 Card' },
+          { key: 'cash', label: '💵 Cash' },
+        ] as const).map(({ key, label }) => {
+          const active = paymentFilter === key;
+          return (
+            <TouchableOpacity
+              key={key}
+              style={[styles.paymentChip, active && styles.paymentChipActive]}
+              onPress={() => setPaymentFilter(key)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.paymentLabel, { color: active ? '#fff' : text3 }]}>
+                {label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
       {loading ? (
         <ActivityIndicator style={styles.loader} color={GREEN} />
+      ) : anyError ? (
+        <Text style={[styles.empty, { color: '#ef4444' }]}>
+          Failed to load spots. Check your connection.
+        </Text>
       ) : combined.length === 0 ? (
         <Text style={[styles.empty, { color: text3 }]}>No spots found nearby</Text>
       ) : (
@@ -329,12 +318,25 @@ const styles = StyleSheet.create({
   kindChip: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 13,
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
   },
   kindChipLabel: { fontSize: 13, fontWeight: '600' },
   kindDivider: { width: 1, height: 20, backgroundColor: 'rgba(128,128,128,0.2)', marginHorizontal: 2 },
+  paymentBar: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+  },
+  paymentChip: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  paymentChipActive: {
+    backgroundColor: GREEN,
+  },
+  paymentLabel: { fontSize: 13, fontWeight: '600' },
   loader: { marginTop: 48 },
   empty:  { textAlign: 'center', marginTop: 48, fontSize: 14 },
   listContent: { paddingBottom: 16 },

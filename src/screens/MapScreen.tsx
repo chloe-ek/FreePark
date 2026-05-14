@@ -9,16 +9,17 @@ import { useSettings } from '../contexts/SettingsContext';
 import { MeterMarker } from '../components/MeterMarker';
 import { MeterSheet } from '../components/MeterSheet';
 import { FloatingPill } from '../components/FloatingPill';
-import { FilterChip } from '../components/FilterChip';
+import { SelectChip } from '../components/SelectChip';
+import { FilterDropdown } from '../components/FilterDropdown';
 import { SearchBar } from '../components/SearchBar';
 import { SearchOverlay } from '../components/SearchOverlay';
 import { LocateButton } from '../components/LocateButton';
 import { TabBar, TabName } from '../components/TabBar';
 import { DARK_MAP_STYLE } from '../theme';
-import { isMeterFreeNow, getFreeAfterTime, getCurrentTimeLimit } from '../utils/parkingUtils';
-import { getMeterTier, TierKey } from '../components/MeterMarker';
+import { isMeterFreeNow, getFreeAfterTime, getCurrentTimeLimit, getCurrentRate, getMotoCurrentRate, getMotoCurrentTimeLimit } from '../utils/parkingUtils';
 import { NearbyMeterResult, DisabilityParkingResult, MotorcycleParkingResult, EvChargingResult } from '../types/database';
 import { ResolvedPlace } from '../lib/geocoding';
+import { VANCOUVER_CENTER } from '../constants/geo';
 import { useNearbyDisabilityParking } from '../hooks/useNearbyDisabilityParking';
 import { useNearbyMotorcycleParking } from '../hooks/useNearbyMotorcycleParking';
 import { useNearbyEvCharging } from '../hooks/useNearbyEvCharging';
@@ -28,6 +29,7 @@ import { MotorcycleMarker } from '../components/MotorcycleMarker';
 import { MotorcycleSheet } from '../components/MotorcycleSheet';
 import { EvMarker } from '../components/EvMarker';
 import { EvSheet } from '../components/EvSheet';
+import { useSpotReports } from '../hooks/useSpotReports';
 
 interface Props {
   onNavigate: (tab: TabName) => void;
@@ -50,38 +52,36 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
   const queryLat = queryCenter?.lat ?? latitude;
   const queryLng = queryCenter?.lng ?? longitude;
 
-  const { meters, loading: metersLoading } = useNearbyMeters(
-    queryLat, queryLng, settings.radiusMeters,
-  );
+  type LayerKind = 'meter' | 'accessible' | 'motorcycle' | 'ev';
+  const [activeLayer, setActiveLayer] = useState<LayerKind>('meter');
 
   const [selected, setSelected] = useState<NearbyMeterResult | null>(null);
   const [selectedSpot, setSelectedSpot] = useState<DisabilityParkingResult | null>(null);
   const [selectedMoto, setSelectedMoto] = useState<MotorcycleParkingResult | null>(null);
   const [selectedEv, setSelectedEv] = useState<EvChargingResult | null>(null);
   const [searching, setSearching] = useState(false);
-  const [dayFilter, setDayFilter] = useState<'Weekday' | 'Weekend'>('Weekday');
-  const [showAccessible, setShowAccessible] = useState(false);
-  const [showMotorcycle, setShowMotorcycle] = useState(false);
-  const [showEv, setShowEv] = useState(false);
 
-  // Price tier filter — each level shows dots up to that tier (inclusive)
-  const TIER_OPTS: Array<TierKey | 'all'> = ['all', 'free', 'cheap', 'mid'];
-  const TIER_LABELS = ['$ All', 'Free', '≤ $', '≤ $$'];
-  const [tierIdx, setTierIdx] = useState(0);
-  const maxTier = TIER_OPTS[tierIdx];
+  function handleLayerChange(layer: LayerKind) {
+    setActiveLayer(layer);
+    setSelected(null); setSelectedSpot(null); setSelectedMoto(null); setSelectedEv(null);
+  }
 
-  const TIER_ORDER: TierKey[] = ['free', 'cheap', 'mid', 'exp'];
+  const { meters, loading: metersLoading, error: metersError } = useNearbyMeters(
+    queryLat, queryLng, settings.radiusMeters, activeLayer === 'meter',
+  );
 
-  // -1 = no limit only, null = any
-  const TIME_LIMIT_OPTS = [null, -1, 60, 120, 240] as const;
-  const TIME_LIMIT_LABELS = ['Any', 'No limit', '1hr+', '2hr+', '4hr+'] as const;
-  const [timeLimitIdx, setTimeLimitIdx] = useState(0);
-  const minTimeLimit = TIME_LIMIT_OPTS[timeLimitIdx];
+  const meterIds = useMemo(() => meters.map((m) => m.meter_id), [meters]);
+  const { getReport, submitReport } = useSpotReports(meterIds);
 
-  const PAYMENT_OPTS = ['all', 'card', 'cash'] as const;
-  const PAYMENT_LABELS = ['All pay', 'Card', 'Cash'] as const;
-  const [paymentIdx, setPaymentIdx] = useState(0);
-  const paymentFilter = PAYMENT_OPTS[paymentIdx];
+  // null = any price, 0 = free only, 2/3 = under $X/hr
+  const [maxRate, setMaxRate] = useState<null | 0 | 2 | 3>(null);
+  const [minTimeLimit, setMinTimeLimit] = useState<null | 120 | 180 | -1>(null);
+  const [paymentFilter, setPaymentFilter] = useState<'all' | 'card' | 'cash'>('all');
+  const [openDropdown, setOpenDropdown] = useState<'price' | 'time' | 'payment' | null>(null);
+
+  function toggleDropdown(id: 'price' | 'time' | 'payment') {
+    setOpenDropdown(prev => prev === id ? null : id);
+  }
 
   useEffect(() => {
     if (!pendingFocusMeter) return;
@@ -97,13 +97,13 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
   }, [pendingFocusMeter]);
 
   const { spots: accessibleSpots } = useNearbyDisabilityParking(
-    queryLat, queryLng, settings.radiusMeters, showAccessible,
+    queryLat, queryLng, settings.radiusMeters, activeLayer === 'accessible',
   );
   const { spots: motoSpots } = useNearbyMotorcycleParking(
-    queryLat, queryLng, settings.radiusMeters, showMotorcycle,
+    queryLat, queryLng, settings.radiusMeters, activeLayer === 'motorcycle',
   );
   const { stations: evStations } = useNearbyEvCharging(
-    queryLat, queryLng, settings.radiusMeters, showEv,
+    queryLat, queryLng, settings.radiusMeters, activeLayer === 'ev',
   );
 
   const { bg } = theme.colors;
@@ -111,9 +111,13 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
   const visibleMeters = useMemo(() => {
     let list = meters;
 
-    if (maxTier !== 'all') {
-      const maxIdx = TIER_ORDER.indexOf(maxTier as TierKey);
-      list = list.filter((m) => TIER_ORDER.indexOf(getMeterTier(m)) <= maxIdx);
+    if (maxRate === 0) {
+      list = list.filter((m) => isMeterFreeNow(m));
+    } else if (maxRate !== null) {
+      list = list.filter((m) => {
+        const rate = getCurrentRate(m);
+        return rate === null || rate === 0 || rate < maxRate;
+      });
     }
 
     if (minTimeLimit === -1) {
@@ -132,7 +136,31 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
     }
 
     return list;
-  }, [meters, maxTier, minTimeLimit, paymentFilter]);
+  }, [meters, maxRate, minTimeLimit, paymentFilter]);
+
+  const visibleMotoSpots = useMemo(() => {
+    let list = motoSpots;
+
+    if (maxRate === 0) {
+      list = list.filter((m) => { const r = getMotoCurrentRate(m); return r == null || r === 0; });
+    } else if (maxRate !== null) {
+      list = list.filter((m) => { const r = getMotoCurrentRate(m); return r == null || r === 0 || r < maxRate; });
+    }
+
+    if (minTimeLimit === -1) {
+      list = list.filter((m) => getMotoCurrentTimeLimit(m) === null);
+    } else if (minTimeLimit !== null) {
+      list = list.filter((m) => { const tl = getMotoCurrentTimeLimit(m); return tl === null || tl >= minTimeLimit; });
+    }
+
+    if (paymentFilter === 'card') {
+      list = list.filter((m) => m.credit_card === true);
+    } else if (paymentFilter === 'cash') {
+      list = list.filter((m) => m.credit_card === false);
+    }
+
+    return list;
+  }, [motoSpots, maxRate, minTimeLimit, paymentFilter]);
 
   const freeCount = useMemo(
     () => visibleMeters.filter(isMeterFreeNow).length,
@@ -172,12 +200,15 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
       markerPressedRef.current = false;
       return;
     }
-    setSelected(null);
-    setSelectedSpot(null);
-    setSelectedMoto(null);
-    setSelectedEv(null);
-    const { latitude: lat, longitude: lng } = e.nativeEvent.coordinate;
-    setQueryCenter({ name: '', sub: '', lat, lng });
+    setOpenDropdown(null);
+    if (selected || selectedSpot || selectedMoto || selectedEv) {
+      setSelected(null);
+      setSelectedSpot(null);
+      setSelectedMoto(null);
+      setSelectedEv(null);
+      return;
+    }
+    setQueryCenter({ name: '', sub: '', lat: e.nativeEvent.coordinate.latitude, lng: e.nativeEvent.coordinate.longitude });
   }
 
   function handlePinPress(meter: NearbyMeterResult) {
@@ -202,55 +233,73 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
 
   return (
     <View style={[styles.container, { backgroundColor: bg }]}>
-      {/* Filter strip — paddingTop pushes below notch/status bar */}
-      <View style={[styles.filterStrip, { backgroundColor: bg, paddingTop: insets.top + 6 }]}>
-        <FilterChip
-          label={TIER_LABELS[tierIdx]}
-          active={tierIdx > 0}
-          onPress={() => setTierIdx((i) => (i + 1) % TIER_OPTS.length)}
-        />
-        {(['Weekday', 'Weekend'] as const).map((d) => (
-          <FilterChip
-            key={d}
-            label={d}
-            active={dayFilter === d}
-            onPress={() => setDayFilter(d)}
-          />
-        ))}
-        <FilterChip
-          label={PAYMENT_LABELS[paymentIdx]}
-          active={paymentIdx > 0}
-          onPress={() => setPaymentIdx((i) => (i + 1) % PAYMENT_OPTS.length)}
-        />
-        <FilterChip
-          label={`T ${TIME_LIMIT_LABELS[timeLimitIdx]}`}
-          active={minTimeLimit !== null}
-          onPress={() => setTimeLimitIdx((i) => (i + 1) % TIME_LIMIT_OPTS.length)}
-        />
-        <FilterChip
-          label="♿"
-          active={showAccessible}
-          onPress={() => setShowAccessible((v) => !v)}
-        />
-        <FilterChip
-          label="🏍"
-          active={showMotorcycle}
-          onPress={() => setShowMotorcycle((v) => !v)}
-        />
-        <FilterChip
-          label="⚡"
-          active={showEv}
-          onPress={() => setShowEv((v) => !v)}
-        />
-        {queryCenter && (
-          <TouchableOpacity
-            onPress={clearQueryCenter}
-            style={styles.locationChip}
-          >
-            <Text style={styles.locationChipText} numberOfLines={1}>
-              × {isTapCenter ? 'Selected area' : queryCenter.name.split(',')[0]}
-            </Text>
-          </TouchableOpacity>
+      {/* Filter panel */}
+      <View style={[styles.filterPanel, { backgroundColor: bg, paddingTop: insets.top + 8 }]}>
+
+        {/* Row 1 — spot type selector */}
+        <View style={styles.layerRow}>
+          {([
+            { key: 'meter',      label: 'Parking' },
+            { key: 'accessible', label: 'Accessible' },
+            { key: 'motorcycle', label: 'Motorcycle' },
+            { key: 'ev',         label: 'EV' },
+          ] as const).map(({ key, label }) => (
+            <SelectChip key={key} label={label} active={activeLayer === key} onPress={() => handleLayerChange(key)} />
+          ))}
+        </View>
+
+        {/* Row 2 — dropdown filters (meters + motorcycle) */}
+        {(activeLayer === 'meter' || activeLayer === 'motorcycle') && (
+          <View style={[styles.filterRow, { borderTopColor: theme.colors.border }]}>
+            <FilterDropdown
+              label="Price"
+              selectedValue={maxRate}
+              defaultValue={null}
+              isOpen={openDropdown === 'price'}
+              onToggle={() => toggleDropdown('price')}
+              onChange={(v) => { setMaxRate(v as null | 0 | 2 | 3); setOpenDropdown(null); }}
+              options={[
+                { value: null, label: 'Any price' },
+                { value: 0,    label: 'Free only' },
+                { value: 2,    label: 'Under $2 / hr' },
+                { value: 3,    label: 'Under $3 / hr' },
+              ]}
+            />
+            <FilterDropdown
+              label="Duration"
+              selectedValue={minTimeLimit}
+              defaultValue={null}
+              isOpen={openDropdown === 'time'}
+              onToggle={() => toggleDropdown('time')}
+              onChange={(v) => { setMinTimeLimit(v as null | 120 | 180 | -1); setOpenDropdown(null); }}
+              options={[
+                { value: null, label: 'Any duration' },
+                { value: 120,  label: 'Need 2 hrs' },
+                { value: 180,  label: 'Need 3 hrs' },
+                { value: -1,   label: 'No time limit' },
+              ]}
+            />
+            <FilterDropdown
+              label="Payment"
+              selectedValue={paymentFilter}
+              defaultValue="all"
+              isOpen={openDropdown === 'payment'}
+              onToggle={() => toggleDropdown('payment')}
+              onChange={(v) => { setPaymentFilter(v as 'all' | 'card' | 'cash'); setOpenDropdown(null); }}
+              options={[
+                { value: 'all',  label: 'Any payment' },
+                { value: 'card', label: 'Card only' },
+                { value: 'cash', label: 'Cash only' },
+              ]}
+            />
+            {queryCenter && (
+              <TouchableOpacity onPress={clearQueryCenter} style={styles.locationChip}>
+                <Text style={styles.locationChipText} numberOfLines={1}>
+                  × {isTapCenter ? 'Selected area' : queryCenter.name.split(',')[0]}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
         )}
       </View>
 
@@ -265,48 +314,46 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
           showsMyLocationButton={false}
           onPress={handleMapPress}
           initialRegion={{
-            latitude: queryLat ?? 49.2827,
-            longitude: queryLng ?? -123.1207,
+            latitude: queryLat ?? VANCOUVER_CENTER.latitude,
+            longitude: queryLng ?? VANCOUVER_CENTER.longitude,
             latitudeDelta: 0.008,
             longitudeDelta: 0.008,
           }}
         >
-          {visibleMeters.map((meter) => (
+          {activeLayer === 'meter' && visibleMeters.map((meter) => (
             <MeterMarker
               key={meter.id}
               meter={meter}
               onPress={handlePinPress}
+              hasReport={!!getReport(meter.meter_id)}
             />
           ))}
-          {showAccessible && accessibleSpots.map((spot) => (
+          {activeLayer === 'accessible' && accessibleSpots.map((spot) => (
             <DisabilityMarker
               key={`acc-${spot.id}`}
               spot={spot}
               onPress={(s) => {
                 markerPressedRef.current = true;
-                setSelected(null); setSelectedMoto(null); setSelectedEv(null);
                 setSelectedSpot((prev) => (prev?.id === s.id ? null : s));
               }}
             />
           ))}
-          {showMotorcycle && motoSpots.map((spot) => (
+          {activeLayer === 'motorcycle' && visibleMotoSpots.map((spot) => (
             <MotorcycleMarker
               key={`moto-${spot.id}`}
               spot={spot}
               onPress={(s) => {
                 markerPressedRef.current = true;
-                setSelected(null); setSelectedSpot(null); setSelectedEv(null);
                 setSelectedMoto((prev) => (prev?.id === s.id ? null : s));
               }}
             />
           ))}
-          {showEv && evStations.map((station) => (
+          {activeLayer === 'ev' && evStations.map((station) => (
             <EvMarker
               key={`ev-${station.id}`}
               station={station}
               onPress={(s) => {
                 markerPressedRef.current = true;
-                setSelected(null); setSelectedSpot(null); setSelectedMoto(null);
                 setSelectedEv((prev) => (prev?.id === s.id ? null : s));
               }}
             />
@@ -314,21 +361,21 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
           {isTapCenter && queryCenter && (
             <Marker
               coordinate={{ latitude: queryCenter.lat, longitude: queryCenter.lng }}
-              anchor={{ x: 0.5, y: 0.5 }}
+              anchor={{ x: 0.5, y: 1.0 }}
               tracksViewChanges={false}
             >
-              <View style={styles.tapPin}>
-                <View style={styles.tapPinInner} />
-              </View>
+              <Text style={styles.tapPin}>📍</Text>
             </Marker>
           )}
         </MapView>
 
-        <FloatingPill
-          freeCount={freeCount}
-          label={pillLabel}
-          highlight={pillHighlight}
-        />
+        {activeLayer === 'meter' && (
+          <FloatingPill
+            freeCount={freeCount}
+            label={pillLabel}
+            highlight={pillHighlight}
+          />
+        )}
 
         <LocateButton onPress={recenter} bottom={selected ? 178 : 64} />
 
@@ -336,6 +383,12 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
           <View style={styles.loadingBadge}>
             <ActivityIndicator size="small" color="#fff" />
             <Text style={styles.loadingText}>Loading…</Text>
+          </View>
+        )}
+
+        {!metersLoading && metersError && (
+          <View style={[styles.loadingBadge, styles.errorBadge]}>
+            <Text style={styles.loadingText}>Failed to load meters</Text>
           </View>
         )}
 
@@ -351,7 +404,12 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
         )}
 
         {selected && (
-          <MeterSheet meter={selected} onDismiss={() => setSelected(null)} />
+          <MeterSheet
+            meter={selected}
+            onDismiss={() => setSelected(null)}
+            report={getReport(selected.meter_id)}
+            onReport={(type) => submitReport(selected.meter_id, type)}
+          />
         )}
         {selectedSpot && !selected && (
           <DisabilitySheet spot={selectedSpot} onDismiss={() => setSelectedSpot(null)} />
@@ -372,13 +430,26 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
 const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  filterStrip: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingBottom: 8,
+  filterPanel: {
     flexShrink: 0,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    zIndex: 20,
+  },
+  layerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 10,
   },
   mapArea: {
     flex: 1,
@@ -399,6 +470,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   loadingText: { color: '#fff', fontSize: 12 },
+  errorBadge: { backgroundColor: 'rgba(239,68,68,0.75)' },
   locationChip: {
     backgroundColor: 'rgba(94,194,106,0.15)',
     borderRadius: 100,
@@ -412,19 +484,6 @@ const styles = StyleSheet.create({
     color: '#5ec26a',
   },
   tapPin: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(94,194,106,0.25)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  tapPinInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#5ec26a',
-    borderWidth: 2,
-    borderColor: '#fff',
+    fontSize: 28,
   },
 });

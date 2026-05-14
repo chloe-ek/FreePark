@@ -1,12 +1,13 @@
 import React, { useRef, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView,
-  StyleSheet, Animated, Platform,
+  StyleSheet, Animated,
 } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { TabBar, TabName } from '../components/TabBar';
 import { GREEN } from '../theme';
+import { version } from '../../package.json';
 
 interface Props {
   onNavigate: (tab: TabName) => void;
@@ -14,8 +15,8 @@ interface Props {
 
 export function SettingsScreen({ onNavigate }: Props) {
   const { theme, toggleTheme } = useTheme();
-  const { settings, setShowFreeOnly, setWeekendMode, setNotifyWhenFree, setRadiusMeters } = useSettings();
-  const { bg, bg2, surface, border, text, text2, text3 } = theme.colors;
+  const { settings, setRadiusMeters } = useSettings();
+  const { bg2, surface, border, text, text2, text3 } = theme.colors;
 
   return (
     <View style={[styles.container, { backgroundColor: bg2 }]}>
@@ -24,37 +25,21 @@ export function SettingsScreen({ onNavigate }: Props) {
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+
         {/* Appearance */}
         <SectionLabel label="Appearance" color={text3} />
         <SettingsGroup surface={surface} border={border}>
-          <SettingsRow
-            icon="◑"
-            label="Dark Mode"
-            surface={surface}
-            border={border}
-            text={text}
-          >
+          <SettingsRow icon="◑" label="Dark Mode" surface={surface} border={border} text={text}>
             <Toggle on={theme.scheme === 'dark'} onToggle={toggleTheme} />
           </SettingsRow>
         </SettingsGroup>
 
-        {/* Filters */}
-        <SectionLabel label="Filters" color={text3} />
-        <SettingsGroup surface={surface} border={border}>
-          <SettingsRow icon="●" label="Free spots only" surface={surface} border={border} text={text} divider>
-            <Toggle on={settings.showFreeOnly} onToggle={() => setShowFreeOnly(!settings.showFreeOnly)} />
-          </SettingsRow>
-          <SettingsRow icon="◼" label="Weekend rules" surface={surface} border={border} text={text}>
-            <Toggle on={settings.weekendMode} onToggle={() => setWeekendMode(!settings.weekendMode)} />
-          </SettingsRow>
-        </SettingsGroup>
-
-        {/* Radius */}
+        {/* Search Radius */}
         <SectionLabel label="Search Radius" color={text3} />
         <View style={[styles.radiusCard, { backgroundColor: surface }]}>
           <View style={styles.radiusTop}>
             <Text style={[styles.radiusLabel, { color: text }]}>Radius</Text>
-            <Text style={[styles.radiusVal, { color: GREEN }]}>{settings.radiusMeters}m</Text>
+            <Text style={[styles.radiusVal, { color: GREEN }]}>{settings.radiusMeters} m</Text>
           </View>
           <View style={styles.stepper}>
             <TouchableOpacity
@@ -75,27 +60,19 @@ export function SettingsScreen({ onNavigate }: Props) {
             </TouchableOpacity>
           </View>
           <View style={styles.radiusRange}>
-            <Text style={[styles.rangeText, { color: text2 }]}>100m</Text>
+            <Text style={[styles.rangeText, { color: text2 }]}>100 m</Text>
             <Text style={[styles.rangeText, { color: text2 }]}>1 km</Text>
           </View>
         </View>
 
-        {/* Notifications */}
-        <SectionLabel label="Notifications" color={text3} />
-        <SettingsGroup surface={surface} border={border}>
-          <SettingsRow icon="🔔" label="Notify when meters go free" surface={surface} border={border} text={text}>
-            <Toggle on={settings.notifyWhenFree} onToggle={() => setNotifyWhenFree(!settings.notifyWhenFree)} />
-          </SettingsRow>
-        </SettingsGroup>
-
         {/* About */}
         <SectionLabel label="About" color={text3} />
         <SettingsGroup surface={surface} border={border}>
-          {[
+          {([
             ['Data source', 'City of Vancouver Open Data'],
-            ['Updated', 'Daily'],
-            ['Version', '1.0.0'],
-          ].map(([k, v], i, arr) => (
+            ['Coverage',    'Vancouver, BC'],
+            ['Version',     version],
+          ] as [string, string][]).map(([k, v], i, arr) => (
             <SettingsRow
               key={k}
               label={k}
@@ -108,6 +85,11 @@ export function SettingsScreen({ onNavigate }: Props) {
             </SettingsRow>
           ))}
         </SettingsGroup>
+
+        <Text style={[styles.attribution, { color: text3 }]}>
+          Contains information licensed under the{'\n'}Open Government Licence – Vancouver.
+        </Text>
+
       </ScrollView>
 
       <TabBar active="settings" onNavigate={onNavigate} />
@@ -118,19 +100,11 @@ export function SettingsScreen({ onNavigate }: Props) {
 // ── Sub-components ─────────────────────────────────────────────
 
 function SectionLabel({ label, color }: { label: string; color: string }) {
-  return (
-    <Text style={[styles.sectionLabel, { color }]}>{label}</Text>
-  );
+  return <Text style={[styles.sectionLabel, { color }]}>{label}</Text>;
 }
 
-function SettingsGroup({
-  children,
-  surface,
-  border,
-}: {
-  children: React.ReactNode;
-  surface: string;
-  border: string;
+function SettingsGroup({ children, surface, border }: {
+  children: React.ReactNode; surface: string; border: string;
 }) {
   return (
     <View style={[styles.group, { backgroundColor: surface, borderColor: border }]}>
@@ -151,10 +125,12 @@ interface RowProps {
 
 function SettingsRow({ icon, label, children, surface, border, text, divider }: RowProps) {
   return (
-    <View style={[styles.row, { backgroundColor: surface }, divider && { borderBottomWidth: 1, borderBottomColor: border }]}>
-      {icon != null && (
-        <Text style={[styles.rowIcon, { color: GREEN }]}>{icon}</Text>
-      )}
+    <View style={[
+      styles.row,
+      { backgroundColor: surface },
+      divider && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: border },
+    ]}>
+      {icon != null && <Text style={[styles.rowIcon, { color: GREEN }]}>{icon}</Text>}
       <Text style={[styles.rowLabel, { color: text }]}>{label}</Text>
       {children}
     </View>
@@ -165,18 +141,11 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   const anim = useRef(new Animated.Value(on ? 1 : 0)).current;
 
   useEffect(() => {
-    Animated.timing(anim, {
-      toValue: on ? 1 : 0,
-      duration: 180,
-      useNativeDriver: false,
-    }).start();
+    Animated.timing(anim, { toValue: on ? 1 : 0, duration: 180, useNativeDriver: false }).start();
   }, [on]);
 
   const left = anim.interpolate({ inputRange: [0, 1], outputRange: [3, 21] });
-  const bg = anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['#cccccc', GREEN],
-  });
+  const bg   = anim.interpolate({ inputRange: [0, 1], outputRange: ['#cccccc', GREEN] });
 
   return (
     <TouchableOpacity onPress={onToggle} activeOpacity={0.8}>
@@ -188,97 +157,32 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
+  container:     { flex: 1 },
+  header:        { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  title:         { fontSize: 17, fontWeight: '600' },
+  scroll:        { flex: 1 },
+  scrollContent: { paddingBottom: 16 },
+  sectionLabel:  {
+    fontSize: 11, fontWeight: '600', textTransform: 'uppercase',
+    letterSpacing: 0.8, paddingHorizontal: 16, paddingTop: 20, paddingBottom: 6,
   },
-  title: { fontSize: 17, fontWeight: '600' },
-  scroll: { flex: 1 },
-  scrollContent: { paddingBottom: 8 },
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 6,
-  },
-  group: {
-    marginHorizontal: 16,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    gap: 10,
-  },
-  rowIcon: { fontSize: 16, width: 24, textAlign: 'center' },
-  rowLabel: { flex: 1, fontSize: 14 },
-  rowValue: { fontSize: 13 },
-  radiusCard: {
-    marginHorizontal: 16,
-    borderRadius: 12,
-    padding: 14,
-  },
-  radiusTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    marginBottom: 8,
-  },
-  radiusLabel: { fontSize: 14 },
-  radiusVal: { fontSize: 13, fontWeight: '500' },
-  stepper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 6,
-  },
-  stepBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    borderWidth: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  stepBtnText: { fontSize: 16, lineHeight: 20 },
-  stepTrack: {
-    flex: 1,
-    flexDirection: 'row',
-    height: 4,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  stepFill: { height: 4 },
-  radiusRange: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 2,
-  },
-  rangeText: { fontSize: 10 },
-  track: {
-    width: 44,
-    height: 26,
-    borderRadius: 13,
-    justifyContent: 'center',
-  },
-  knob: {
-    position: 'absolute',
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 2,
-    top: 3,
-  },
+  group:         { marginHorizontal: 16, borderRadius: 12, overflow: 'hidden' },
+  row:           { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 13, gap: 10 },
+  rowIcon:       { fontSize: 16, width: 24, textAlign: 'center' },
+  rowLabel:      { flex: 1, fontSize: 14 },
+  rowValue:      { fontSize: 13 },
+  radiusCard:    { marginHorizontal: 16, borderRadius: 12, padding: 14 },
+  radiusTop:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 },
+  radiusLabel:   { fontSize: 14 },
+  radiusVal:     { fontSize: 13, fontWeight: '500' },
+  stepper:       { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 },
+  stepBtn:       { width: 28, height: 28, borderRadius: 8, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
+  stepBtnText:   { fontSize: 16, lineHeight: 20 },
+  stepTrack:     { flex: 1, flexDirection: 'row', height: 4, borderRadius: 2, overflow: 'hidden' },
+  stepFill:      { height: 4 },
+  radiusRange:   { flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 },
+  rangeText:     { fontSize: 10 },
+  attribution:   { fontSize: 10, textAlign: 'center', lineHeight: 16, marginTop: 28, marginBottom: 8, opacity: 0.5 },
+  track:         { width: 44, height: 26, borderRadius: 13, justifyContent: 'center' },
+  knob:          { position: 'absolute', width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 2, elevation: 2, top: 3 },
 });
