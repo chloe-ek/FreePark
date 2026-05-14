@@ -15,6 +15,7 @@ import { GREEN } from '../theme';
 interface Props {
   meter: NearbyMeterResult;
   onPress?: (meter: NearbyMeterResult) => void;
+  hasReport?: boolean;
 }
 
 export const TIER_COLORS = {
@@ -32,12 +33,12 @@ export function getMeterTier(meter: NearbyMeterResult): TierKey {
   if (isMeterFreeNow(meter)) return 'free';
   const rate = getCurrentRate(meter);
   if (rate == null || rate === 0) return 'free';
-  if (rate <= 1.50) return 'cheap';
-  if (rate <= 3.00) return 'mid';
+  if (rate < 2.00) return 'cheap';
+  if (rate < 3.00) return 'mid';
   return 'exp';
 }
 
-export function MeterMarker({ meter, onPress }: Props) {
+export function MeterMarker({ meter, onPress, hasReport }: Props) {
   const tier = getMeterTier(meter);
   const color = TIER_COLORS[tier];
   const free = tier === 'free';
@@ -52,6 +53,7 @@ export function MeterMarker({ meter, onPress }: Props) {
     >
       <View style={styles.wrapper}>
         <View style={[styles.dot, { backgroundColor: color }]} />
+        {hasReport && <Text style={styles.reportIcon}>⚠️</Text>}
       </View>
 
       <Callout tooltip>
@@ -76,8 +78,8 @@ export function MeterMarker({ meter, onPress }: Props) {
 
 const styles = StyleSheet.create({
   wrapper: {
-    width: 22,
-    height: 22,
+    width: 28,
+    height: 28,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -97,6 +99,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+  },
+  reportIcon: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    fontSize: 11,
   },
   calloutId:     { fontWeight: '700', fontSize: 13, color: '#f0f0f0', marginBottom: 4 },
   calloutRate:   { fontSize: 13, marginBottom: 2, fontWeight: '500' },

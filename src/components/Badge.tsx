@@ -1,15 +1,14 @@
 import React from 'react';
 import { Text, StyleSheet } from 'react-native';
-import { GREEN } from '../theme';
 
 interface Props {
   children: React.ReactNode;
-  variant?: 'green' | 'grey';
+  color: string;
 }
 
-export function Badge({ children, variant = 'green' }: Props) {
+export function Badge({ children, color }: Props) {
   return (
-    <Text style={[styles.base, variant === 'green' ? styles.green : styles.grey]}>
+    <Text style={[styles.base, { backgroundColor: color }]}>
       {children}
     </Text>
   );
@@ -25,6 +24,4 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     color: '#fff',
   },
-  green: { backgroundColor: GREEN },
-  grey:  { backgroundColor: '#555' },
 });

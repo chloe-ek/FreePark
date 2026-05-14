@@ -9,9 +9,9 @@ interface Props {
   onPress: () => void;
 }
 
-export function FilterChip({ label, active, onPress }: Props) {
+export function SelectChip({ label, active, onPress }: Props) {
   const { theme } = useTheme();
-  const { surface, border, text2 } = theme.colors;
+  const { surface, border, text, text2 } = theme.colors;
 
   return (
     <TouchableOpacity
@@ -33,9 +33,9 @@ export function FilterChip({ label, active, onPress }: Props) {
 
 const styles = StyleSheet.create({
   chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 100,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
     borderWidth: 1.5,
   },
   chipActive: {
@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   label: {
-    fontSize: 12,
-    fontWeight: '500',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

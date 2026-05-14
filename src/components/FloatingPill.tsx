@@ -10,24 +10,28 @@ interface Props {
 
 export function FloatingPill({ freeCount, label, highlight }: Props) {
   return (
-    <View style={styles.pill}>
-      <Text style={styles.badge}>{freeCount} free</Text>
-      <Text style={styles.text}>{label}</Text>
-      {highlight != null && (
-        <Text style={styles.countdown}>{highlight}</Text>
-      )}
+    <View style={styles.wrapper} pointerEvents="box-none">
+      <View style={styles.pill}>
+        <Text style={[styles.badge, freeCount === 0 && styles.badgeZero]}>{freeCount} free</Text>
+        <Text style={styles.text}>{label}</Text>
+        {highlight != null && (
+          <Text style={styles.countdown}>{highlight}</Text>
+        )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  pill: {
+  wrapper: {
     position: 'absolute',
     top: 12,
-    alignSelf: 'center',
-    left: '50%',
-    transform: [{ translateX: -80 }],
-    width: 160,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  pill: {
     backgroundColor: 'rgba(20,20,20,0.82)',
     borderRadius: 100,
     borderWidth: 1,
@@ -37,7 +41,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    zIndex: 10,
   },
   badge: {
     backgroundColor: GREEN,
@@ -48,6 +51,9 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 100,
     overflow: 'hidden',
+  },
+  badgeZero: {
+    backgroundColor: '#4b5563',
   },
   text: {
     fontSize: 12,
