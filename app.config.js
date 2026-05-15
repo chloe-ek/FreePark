@@ -1,3 +1,6 @@
+const LOCATION_PERMISSION_TEXT =
+  'FreePark uses your location to show free parking meters near you.';
+
 module.exports = {
   expo: {
     name: 'FreePark-expo',
@@ -14,6 +17,9 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: 'com.chloe-ek.FreePark-expo',
+      infoPlist: {
+        NSLocationWhenInUseUsageDescription: LOCATION_PERMISSION_TEXT,
+      },
     },
     android: {
       adaptiveIcon: {
@@ -22,6 +28,7 @@ module.exports = {
       },
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false,
+      permissions: ['android.permission.ACCESS_FINE_LOCATION', 'android.permission.ACCESS_COARSE_LOCATION'],
       config: {
         googleMaps: {
           apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
@@ -32,5 +39,13 @@ module.exports = {
     web: {
       favicon: './assets/favicon.png',
     },
+    plugins: [
+      [
+        'expo-location',
+        {
+          locationWhenInUsePermission: LOCATION_PERMISSION_TEXT,
+        },
+      ],
+    ],
   },
 };
