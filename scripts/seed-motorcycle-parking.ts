@@ -1,6 +1,7 @@
 /// <reference types="node" />
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
+import { VANCOUVER_OPENDATA_BASE } from './opendata';
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -55,7 +56,7 @@ async function fetchAll(): Promise<VancouverMoto[]> {
   let offset = 0;
   const all: VancouverMoto[] = [];
   while (true) {
-    const url = `https://opendata.vancouver.ca/api/explore/v2.1/catalog/datasets/motorcycle-parking/records?limit=${limit}&offset=${offset}`;
+    const url = `${VANCOUVER_OPENDATA_BASE}/motorcycle-parking/records?limit=${limit}&offset=${offset}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json() as { results: VancouverMoto[]; total_count: number };

@@ -1,6 +1,7 @@
 /// <reference types="node" />
 import 'dotenv/config';
 import { createClient } from "@supabase/supabase-js";
+import { VANCOUVER_OPENDATA_BASE } from './opendata';
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -95,7 +96,7 @@ async function fetchAllMeters(): Promise<VancouverMeter[]> {
   const limit = 100;
 
   while (true) {
-    const url = `https://opendata.vancouver.ca/api/explore/v2.1/catalog/datasets/parking-meters/records?limit=${limit}&offset=${offset}`;
+    const url = `${VANCOUVER_OPENDATA_BASE}/parking-meters/records?limit=${limit}&offset=${offset}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`);
     const json = (await res.json()) as { results: VancouverMeter[]; total_count: number };
