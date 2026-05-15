@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Background: no border radius for App Store (Apple adds its own) -->
+  <rect width="1024" height="1024" fill="#111111"/>
+  <!-- Letter P centered -->
+  <text
+    x="512"
+    y="660"
+    font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif"
+    font-size="540"
+    font-weight="700"
+    fill="white"
+    text-anchor="middle"
+  >P</text>
+  <!-- Green dot: bottom-right, matching AppIcon proportions -->
+  <circle cx="728" cy="728" r="71" fill="#5EC26A"/>
+</svg>
