@@ -15,7 +15,7 @@ import { SearchBar } from '../components/SearchBar';
 import { SearchOverlay } from '../components/SearchOverlay';
 import { LocateButton } from '../components/LocateButton';
 import { TabBar, TabName } from '../components/TabBar';
-import { DARK_MAP_STYLE } from '../theme';
+import { DARK_MAP_STYLE, GREEN } from '../theme';
 import { isMeterFreeNow, getFreeAfterTime } from '../utils/parkingUtils';
 import { NearbyMeterResult, DisabilityParkingResult, MotorcycleParkingResult, EvChargingResult } from '../types/database';
 import { ResolvedPlace } from '../lib/geocoding';
@@ -68,9 +68,13 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
   const [selectedEv, setSelectedEv]     = useState<EvChargingResult | null>(null);
   const [searching, setSearching]       = useState(false);
 
+  function clearAllSelections() {
+    setSelected(null); setSelectedSpot(null); setSelectedMoto(null); setSelectedEv(null);
+  }
+
   function handleLayerChange(layer: LayerKind) {
     setActiveLayer(layer);
-    setSelected(null); setSelectedSpot(null); setSelectedMoto(null); setSelectedEv(null);
+    clearAllSelections();
   }
 
   const { meters, loading: metersLoading, error: metersError } = useNearbyMeters(
@@ -142,7 +146,7 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
     }
     closeDropdown();
     if (selected || selectedSpot || selectedMoto || selectedEv) {
-      setSelected(null); setSelectedSpot(null); setSelectedMoto(null); setSelectedEv(null);
+      clearAllSelections();
       return;
     }
     setQueryCenter({ name: '', sub: '', lat: e.nativeEvent.coordinate.latitude, lng: e.nativeEvent.coordinate.longitude });
@@ -232,7 +236,7 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
           ref={mapRef}
           style={StyleSheet.absoluteFill}
           provider={PROVIDER_GOOGLE}
-          customMapStyle={DARK_MAP_STYLE}
+          customMapStyle={theme.scheme === 'dark' ? DARK_MAP_STYLE : undefined}
           showsUserLocation
           showsMyLocationButton={false}
           onPress={handleMapPress}
@@ -352,6 +356,15 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
   );
 }
 
+const chipRow = {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 7,
+  paddingHorizontal: 12,
+  paddingTop: 8,
+  paddingBottom: 10,
+} as const;
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   centered:  { flex: 1, justifyContent: 'center', alignItems: 'center' },
@@ -359,26 +372,15 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   filterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 10,
+    ...chipRow,
     borderTopWidth: StyleSheet.hairlineWidth,
     zIndex: 20,
   },
   layerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 10,
+    ...chipRow,
   },
   mapArea: {
     flex: 1,
-    position: 'relative',
     minHeight: 0,
   },
   loadingBadge: {
@@ -397,7 +399,7 @@ const styles = StyleSheet.create({
   loadingText: { color: '#fff', fontSize: 12 },
   errorBadge: { backgroundColor: 'rgba(239,68,68,0.75)' },
   locationChip: {
-    backgroundColor: 'rgba(94,194,106,0.15)',
+    backgroundColor: GREEN + '26',
     borderRadius: 100,
     paddingHorizontal: 10,
     paddingVertical: 5,
@@ -406,7 +408,7 @@ const styles = StyleSheet.create({
   locationChipText: {
     fontSize: 11,
     fontWeight: '500',
-    color: '#5ec26a',
+    color: GREEN,
   },
   tapPin: {
     fontSize: 28,
