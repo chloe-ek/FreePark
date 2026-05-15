@@ -2,7 +2,7 @@ import { VANCOUVER_CENTER } from '../constants/geo';
 
 const API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
 
-if (!API_KEY) {
+if (!API_KEY && __DEV__) {
   console.warn('[geocoding] EXPO_PUBLIC_GOOGLE_MAPS_API_KEY is not set — place search will not work');
 }
 
@@ -38,13 +38,17 @@ export async function searchPlaces(query: string): Promise<PlaceCandidate[]> {
       `https://maps.googleapis.com/maps/api/place/autocomplete/json?${params}`,
     );
     const json = await res.json();
-    if (json.status !== 'OK' && json.status !== 'ZERO_RESULTS') return [];
+    if (json.status !== 'OK' && json.status !== 'ZERO_RESULTS') {
+      if (__DEV__) console.warn('[geocoding] searchPlaces API error:', json.status);
+      return [];
+    }
     return (json.predictions as PredictionResult[]).map((p) => ({
       placeId: p.place_id,
       name: p.structured_formatting.main_text,
       sub: p.structured_formatting.secondary_text,
     }));
-  } catch {
+  } catch (err) {
+    if (__DEV__) console.warn('[geocoding] searchPlaces failed:', err);
     return [];
   }
 }
@@ -63,11 +67,15 @@ export async function getPlaceCoords(
       `https://maps.googleapis.com/maps/api/place/details/json?${params}`,
     );
     const json = await res.json();
-    if (json.status !== 'OK') return null;
+    if (json.status !== 'OK') {
+      if (__DEV__) console.warn('[geocoding] getPlaceCoords API error:', json.status);
+      return null;
+    }
     const loc = json.result?.geometry?.location;
     if (typeof loc?.lat !== 'number' || typeof loc?.lng !== 'number') return null;
     return { lat: loc.lat, lng: loc.lng };
-  } catch {
+  } catch (err) {
+    if (__DEV__) console.warn('[geocoding] getPlaceCoords failed:', err);
     return null;
   }
 }

@@ -2,10 +2,15 @@
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabaseUrl = process.env.SUPABASE_URL;
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !serviceRoleKey) {
+  console.error('ERROR: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in environment');
+  process.exit(1);
+}
+
+const supabase = createClient(supabaseUrl, serviceRoleKey);
 
 interface VancouverDisabilityRecord {
   description: string | null;

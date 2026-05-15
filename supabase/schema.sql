@@ -206,6 +206,56 @@ create policy "public read"
   using (true);
 
 -- ============================================================
+-- spot_reports
+-- User-submitted "no vacancy" reports for parking meters.
+-- ============================================================
+create table if not exists public.spot_reports (
+  id            bigint generated always as identity primary key,
+  meter_id      text        not null references public.parking_meters (meter_id) on delete cascade,
+  report_type   text        not null check (report_type in ('no_vacancy')),
+  reported_at   timestamptz not null default now(),
+  expires_at    timestamptz not null default now() + interval '5 minutes'
+);
+
+create index if not exists spot_reports_meter_id_expires_idx
+  on public.spot_reports (meter_id, expires_at);
+
+-- Server-side rate limit: reject a new report if a non-expired report
+-- for the same meter_id already exists.
+create or replace function public.check_spot_report_cooldown()
+returns trigger language plpgsql as $$
+begin
+  if exists (
+    select 1
+    from public.spot_reports
+    where meter_id = new.meter_id
+      and expires_at > now()
+  ) then
+    raise exception 'A report for this meter was submitted recently. Please wait before reporting again.'
+      using errcode = 'P0001';
+  end if;
+  return new;
+end;
+$$;
+
+create or replace trigger spot_reports_cooldown_check
+  before insert on public.spot_reports
+  for each row execute function public.check_spot_report_cooldown();
+
+-- RLS: anyone can read active reports; anyone can insert (rate limit enforced by trigger above).
+alter table public.spot_reports enable row level security;
+
+create policy "public read"
+  on public.spot_reports
+  for select
+  using (true);
+
+create policy "public insert"
+  on public.spot_reports
+  for insert
+  with check (true);
+
+-- ============================================================
 -- Migration: add new columns to an existing table
 -- Run this block instead of the CREATE TABLE above if the table
 -- already exists in your Supabase project.

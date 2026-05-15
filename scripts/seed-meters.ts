@@ -2,10 +2,15 @@
 import 'dotenv/config';
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabaseUrl = process.env.SUPABASE_URL;
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !serviceRoleKey) {
+  console.error('ERROR: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in environment');
+  process.exit(1);
+}
+
+const supabase = createClient(supabaseUrl, serviceRoleKey);
 
 interface VancouverMeter {
   meter_id: string;
@@ -58,11 +63,11 @@ function parseTime(raw: string | null): string | null {
   const t = raw.trim().toLowerCase();
   if (t === "noon") return "12:00";
   if (t === "midnight") return "00:00";
-  const m = t.match(/^(\d{1,2}):(\d{2})\s*(am|pm)?$/);
+  const m = t.match(/^(\d{1,2}):(\d{2})\s*(am|pm)$/);
   if (!m) return null;
   let h = parseInt(m[1], 10);
   const min = m[2];
-  const period = m[3];
+  const period = m[3] as 'am' | 'pm';
   if (period === "am" && h === 12) h = 0;
   if (period === "pm" && h !== 12) h += 12;
   return `${String(h).padStart(2, "0")}:${min}`;

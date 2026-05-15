@@ -74,10 +74,14 @@ export function useSpotReports(meterIds: string[]) {
         meter_id: meterId,
         report_type: type,
       });
-      if (error) return false;
+      if (error) {
+        if (__DEV__) console.warn('[spot_reports] Insert failed:', error.message);
+        return false;
+      }
       reportCooldowns.set(meterId, Date.now());
       return true;
-    } catch {
+    } catch (err) {
+      if (__DEV__) console.warn('[spot_reports] Unexpected error:', err);
       return false;
     }
   }
