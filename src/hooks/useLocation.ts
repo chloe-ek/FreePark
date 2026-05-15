@@ -7,6 +7,7 @@ interface LocationState {
   longitude: number | null;
   error: string | null;
   loading: boolean;
+  permissionDenied: boolean;
 }
 
 export function useLocation(): LocationState {
@@ -15,6 +16,7 @@ export function useLocation(): LocationState {
     longitude: null,
     error: null,
     loading: true,
+    permissionDenied: false,
   });
 
   useEffect(() => {
@@ -28,6 +30,7 @@ export function useLocation(): LocationState {
             ...VANCOUVER_CENTER,
             error: "Location permission denied — showing Vancouver centre.",
             loading: false,
+            permissionDenied: true,
           });
           return;
         }
@@ -38,6 +41,7 @@ export function useLocation(): LocationState {
           longitude: initial.coords.longitude,
           error: null,
           loading: false,
+          permissionDenied: false,
         });
 
         subscription = await Location.watchPositionAsync(
@@ -55,6 +59,7 @@ export function useLocation(): LocationState {
           ...VANCOUVER_CENTER,
           error: "Unable to access location — showing Vancouver centre.",
           loading: false,
+          permissionDenied: false,
         });
       }
     }

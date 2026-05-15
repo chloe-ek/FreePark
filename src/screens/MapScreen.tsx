@@ -1,5 +1,5 @@
 import React, { useRef, useState, useMemo, useEffect } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { PROVIDER_GOOGLE, Marker } from 'react-native-maps';
 import { useLocation } from '../hooks/useLocation';
@@ -51,7 +51,7 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const { settings } = useSettings();
-  const { latitude, longitude, loading: locLoading } = useLocation();
+  const { latitude, longitude, loading: locLoading, error: locError, permissionDenied } = useLocation();
 
   // When non-null, meters are queried around this location instead of GPS.
   // name === '' means the center was set by a map tap (no named place).
@@ -229,6 +229,20 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
           </View>
         )}
       </View>
+
+      {/* Location error banner */}
+      {locError && (
+        <View style={styles.locationBanner}>
+          <Text style={styles.locationBannerText} numberOfLines={1}>
+            {locError}
+          </Text>
+          {permissionDenied && (
+            <TouchableOpacity onPress={() => Linking.openSettings()}>
+              <Text style={styles.locationBannerAction}>Open Settings</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
       {/* Map area */}
       <View style={styles.mapArea}>
@@ -412,5 +426,25 @@ const styles = StyleSheet.create({
   },
   tapPin: {
     fontSize: 28,
+  },
+  locationBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#7c3a00',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    gap: 12,
+  },
+  locationBannerText: {
+    flex: 1,
+    color: '#fde68a',
+    fontSize: 12,
+  },
+  locationBannerAction: {
+    color: '#fde68a',
+    fontSize: 12,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
 });

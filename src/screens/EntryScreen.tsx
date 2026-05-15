@@ -1,15 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { useTheme } from '../contexts/ThemeContext';
 import { AppIcon } from '../components/AppIcon';
-import { GREEN } from '../theme';
+import { GREEN, LIGHT_THEME } from '../theme';
 
 interface Props {
   onReady: () => void;
 }
 
 export function EntryScreen({ onReady }: Props) {
-  const { theme } = useTheme();
   const [phase, setPhase] = useState<'loading' | 'locating'>('loading');
 
   useEffect(() => {
@@ -18,7 +16,7 @@ export function EntryScreen({ onReady }: Props) {
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [onReady]);
 
-  const { bg, text, text3 } = theme.colors;
+  const { bg, text, text3 } = LIGHT_THEME.colors;
 
   return (
     <View style={[styles.container, { backgroundColor: bg }]}>
@@ -28,8 +26,8 @@ export function EntryScreen({ onReady }: Props) {
         </View>
         <View style={styles.wordmark}>
           <View style={styles.wordmarkRow}>
-            <Text style={[styles.wordPark, { color: text }]}>Park</Text>
             <Text style={[styles.wordFree, { color: GREEN }]}>Free</Text>
+            <Text style={[styles.wordPark, { color: text }]}>Park</Text>
           </View>
           <View style={styles.subRow}>
             <View style={styles.greenDot} />
