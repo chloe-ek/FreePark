@@ -16,7 +16,7 @@ import { SearchOverlay } from '../components/SearchOverlay';
 import { LocateButton } from '../components/LocateButton';
 import { TabBar, TabName } from '../components/TabBar';
 import { DARK_MAP_STYLE } from '../theme';
-import { isMeterFreeNow, getFreeAfterTime, getCurrentTimeLimit, getCurrentRate, getMotoCurrentRate, getMotoCurrentTimeLimit } from '../utils/parkingUtils';
+import { isMeterFreeNow, getFreeAfterTime } from '../utils/parkingUtils';
 import { NearbyMeterResult, DisabilityParkingResult, MotorcycleParkingResult, EvChargingResult } from '../types/database';
 import { ResolvedPlace } from '../lib/geocoding';
 import { VANCOUVER_CENTER } from '../constants/geo';
@@ -30,6 +30,14 @@ import { MotorcycleSheet } from '../components/MotorcycleSheet';
 import { EvMarker } from '../components/EvMarker';
 import { EvSheet } from '../components/EvSheet';
 import { useSpotReports } from '../hooks/useSpotReports';
+import { useMapFilters } from '../hooks/useMapFilters';
+import { LayerKind } from '../constants/layers';
+import { MAP_DELTAS, LOCATE_BUTTON_BOTTOM } from '../constants/map';
+import {
+  PRICE_FILTER_OPTIONS,
+  DURATION_FILTER_OPTIONS,
+  PAYMENT_FILTER_OPTIONS,
+} from '../constants/filters';
 
 interface Props {
   onNavigate: (tab: TabName) => void;
@@ -52,14 +60,13 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
   const queryLat = queryCenter?.lat ?? latitude;
   const queryLng = queryCenter?.lng ?? longitude;
 
-  type LayerKind = 'meter' | 'accessible' | 'motorcycle' | 'ev';
   const [activeLayer, setActiveLayer] = useState<LayerKind>('meter');
 
-  const [selected, setSelected] = useState<NearbyMeterResult | null>(null);
+  const [selected, setSelected]         = useState<NearbyMeterResult | null>(null);
   const [selectedSpot, setSelectedSpot] = useState<DisabilityParkingResult | null>(null);
   const [selectedMoto, setSelectedMoto] = useState<MotorcycleParkingResult | null>(null);
-  const [selectedEv, setSelectedEv] = useState<EvChargingResult | null>(null);
-  const [searching, setSearching] = useState(false);
+  const [selectedEv, setSelectedEv]     = useState<EvChargingResult | null>(null);
+  const [searching, setSearching]       = useState(false);
 
   function handleLayerChange(layer: LayerKind) {
     setActiveLayer(layer);
@@ -69,35 +76,8 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
   const { meters, loading: metersLoading, error: metersError } = useNearbyMeters(
     queryLat, queryLng, settings.radiusMeters, activeLayer === 'meter',
   );
-
-  const meterIds = useMemo(() => meters.map((m) => m.meter_id), [meters]);
-  const { getReport, submitReport } = useSpotReports(meterIds);
-
-  // null = any price, 0 = free only, 2/3 = under $X/hr
-  const [maxRate, setMaxRate] = useState<null | 0 | 2 | 3>(null);
-  const [minTimeLimit, setMinTimeLimit] = useState<null | 120 | 180 | -1>(null);
-  const [paymentFilter, setPaymentFilter] = useState<'all' | 'card' | 'cash'>('all');
-  const [openDropdown, setOpenDropdown] = useState<'price' | 'time' | 'payment' | null>(null);
-
-  function toggleDropdown(id: 'price' | 'time' | 'payment') {
-    setOpenDropdown(prev => prev === id ? null : id);
-  }
-
-  useEffect(() => {
-    if (!pendingFocusMeter) return;
-    mapRef.current?.animateToRegion({
-      latitude: pendingFocusMeter.latitude,
-      longitude: pendingFocusMeter.longitude,
-      latitudeDelta: 0.004,
-      longitudeDelta: 0.004,
-    });
-    setSelected(pendingFocusMeter);
-    setQueryCenter({ name: '', sub: '', lat: pendingFocusMeter.latitude, lng: pendingFocusMeter.longitude });
-    onClearFocus?.();
-  }, [pendingFocusMeter]);
-
   const { spots: accessibleSpots } = useNearbyDisabilityParking(
-    queryLat, queryLng, settings.radiusMeters, activeLayer === 'accessible',
+    queryLat, queryLng, settings.radiusMeters, activeLayer === 'disability',
   );
   const { spots: motoSpots } = useNearbyMotorcycleParking(
     queryLat, queryLng, settings.radiusMeters, activeLayer === 'motorcycle',
@@ -106,61 +86,31 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
     queryLat, queryLng, settings.radiusMeters, activeLayer === 'ev',
   );
 
+  const meterIds = useMemo(() => meters.map((m) => m.meter_id), [meters]);
+  const { getReport, submitReport } = useSpotReports(meterIds);
+
+  const {
+    maxRate, setMaxRate,
+    minTimeLimit, setMinTimeLimit,
+    paymentFilter, setPaymentFilter,
+    openDropdown, toggleDropdown, closeDropdown,
+    visibleMeters,
+    visibleMotoSpots,
+  } = useMapFilters(meters, motoSpots);
+
+  useEffect(() => {
+    if (!pendingFocusMeter) return;
+    mapRef.current?.animateToRegion({
+      latitude:  pendingFocusMeter.latitude,
+      longitude: pendingFocusMeter.longitude,
+      ...MAP_DELTAS.FOCUS,
+    });
+    setSelected(pendingFocusMeter);
+    setQueryCenter({ name: '', sub: '', lat: pendingFocusMeter.latitude, lng: pendingFocusMeter.longitude });
+    onClearFocus?.();
+  }, [pendingFocusMeter]);
+
   const { bg } = theme.colors;
-
-  const visibleMeters = useMemo(() => {
-    let list = meters;
-
-    if (maxRate === 0) {
-      list = list.filter((m) => isMeterFreeNow(m));
-    } else if (maxRate !== null) {
-      list = list.filter((m) => {
-        const rate = getCurrentRate(m);
-        return rate === null || rate === 0 || rate < maxRate;
-      });
-    }
-
-    if (minTimeLimit === -1) {
-      list = list.filter((m) => getCurrentTimeLimit(m) === null);
-    } else if (minTimeLimit !== null) {
-      list = list.filter((m) => {
-        const limit = getCurrentTimeLimit(m);
-        return limit === null || limit >= minTimeLimit;
-      });
-    }
-
-    if (paymentFilter === 'card') {
-      list = list.filter((m) => m.credit_card === true);
-    } else if (paymentFilter === 'cash') {
-      list = list.filter((m) => m.credit_card === false);
-    }
-
-    return list;
-  }, [meters, maxRate, minTimeLimit, paymentFilter]);
-
-  const visibleMotoSpots = useMemo(() => {
-    let list = motoSpots;
-
-    if (maxRate === 0) {
-      list = list.filter((m) => { const r = getMotoCurrentRate(m); return r == null || r === 0; });
-    } else if (maxRate !== null) {
-      list = list.filter((m) => { const r = getMotoCurrentRate(m); return r == null || r === 0 || r < maxRate; });
-    }
-
-    if (minTimeLimit === -1) {
-      list = list.filter((m) => getMotoCurrentTimeLimit(m) === null);
-    } else if (minTimeLimit !== null) {
-      list = list.filter((m) => { const tl = getMotoCurrentTimeLimit(m); return tl === null || tl >= minTimeLimit; });
-    }
-
-    if (paymentFilter === 'card') {
-      list = list.filter((m) => m.credit_card === true);
-    } else if (paymentFilter === 'cash') {
-      list = list.filter((m) => m.credit_card === false);
-    }
-
-    return list;
-  }, [motoSpots, maxRate, minTimeLimit, paymentFilter]);
 
   const freeCount = useMemo(
     () => visibleMeters.filter(isMeterFreeNow).length,
@@ -170,23 +120,13 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
 
   function recenter() {
     if (latitude == null || longitude == null) return;
-    mapRef.current?.animateToRegion({
-      latitude,
-      longitude,
-      latitudeDelta: 0.008,
-      longitudeDelta: 0.008,
-    });
+    mapRef.current?.animateToRegion({ latitude, longitude, ...MAP_DELTAS.DEFAULT });
   }
 
   function handleSearchSelect(place: ResolvedPlace) {
     setQueryCenter(place);
     setSelected(null);
-    mapRef.current?.animateToRegion({
-      latitude: place.lat,
-      longitude: place.lng,
-      latitudeDelta: 0.008,
-      longitudeDelta: 0.008,
-    });
+    mapRef.current?.animateToRegion({ latitude: place.lat, longitude: place.lng, ...MAP_DELTAS.DEFAULT });
   }
 
   function clearQueryCenter() {
@@ -200,12 +140,9 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
       markerPressedRef.current = false;
       return;
     }
-    setOpenDropdown(null);
+    closeDropdown();
     if (selected || selectedSpot || selectedMoto || selectedEv) {
-      setSelected(null);
-      setSelectedSpot(null);
-      setSelectedMoto(null);
-      setSelectedEv(null);
+      setSelected(null); setSelectedSpot(null); setSelectedMoto(null); setSelectedEv(null);
       return;
     }
     setQueryCenter({ name: '', sub: '', lat: e.nativeEvent.coordinate.latitude, lng: e.nativeEvent.coordinate.longitude });
@@ -240,7 +177,7 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
         <View style={styles.layerRow}>
           {([
             { key: 'meter',      label: 'Parking' },
-            { key: 'accessible', label: 'Accessible' },
+            { key: 'disability', label: 'Accessible' },
             { key: 'motorcycle', label: 'Motorcycle' },
             { key: 'ev',         label: 'EV' },
           ] as const).map(({ key, label }) => (
@@ -257,13 +194,8 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
               defaultValue={null}
               isOpen={openDropdown === 'price'}
               onToggle={() => toggleDropdown('price')}
-              onChange={(v) => { setMaxRate(v as null | 0 | 2 | 3); setOpenDropdown(null); }}
-              options={[
-                { value: null, label: 'Any price' },
-                { value: 0,    label: 'Free only' },
-                { value: 2,    label: 'Under $2 / hr' },
-                { value: 3,    label: 'Under $3 / hr' },
-              ]}
+              onChange={(v) => { setMaxRate(v as typeof maxRate); closeDropdown(); }}
+              options={PRICE_FILTER_OPTIONS}
             />
             <FilterDropdown
               label="Duration"
@@ -271,13 +203,8 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
               defaultValue={null}
               isOpen={openDropdown === 'time'}
               onToggle={() => toggleDropdown('time')}
-              onChange={(v) => { setMinTimeLimit(v as null | 120 | 180 | -1); setOpenDropdown(null); }}
-              options={[
-                { value: null, label: 'Any duration' },
-                { value: 120,  label: 'Need 2 hrs' },
-                { value: 180,  label: 'Need 3 hrs' },
-                { value: -1,   label: 'No time limit' },
-              ]}
+              onChange={(v) => { setMinTimeLimit(v as typeof minTimeLimit); closeDropdown(); }}
+              options={DURATION_FILTER_OPTIONS}
             />
             <FilterDropdown
               label="Payment"
@@ -285,12 +212,8 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
               defaultValue="all"
               isOpen={openDropdown === 'payment'}
               onToggle={() => toggleDropdown('payment')}
-              onChange={(v) => { setPaymentFilter(v as 'all' | 'card' | 'cash'); setOpenDropdown(null); }}
-              options={[
-                { value: 'all',  label: 'Any payment' },
-                { value: 'card', label: 'Card only' },
-                { value: 'cash', label: 'Cash only' },
-              ]}
+              onChange={(v) => { setPaymentFilter(v as typeof paymentFilter); closeDropdown(); }}
+              options={PAYMENT_FILTER_OPTIONS}
             />
             {queryCenter && (
               <TouchableOpacity onPress={clearQueryCenter} style={styles.locationChip}>
@@ -314,10 +237,9 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
           showsMyLocationButton={false}
           onPress={handleMapPress}
           initialRegion={{
-            latitude: queryLat ?? VANCOUVER_CENTER.latitude,
+            latitude:  queryLat ?? VANCOUVER_CENTER.latitude,
             longitude: queryLng ?? VANCOUVER_CENTER.longitude,
-            latitudeDelta: 0.008,
-            longitudeDelta: 0.008,
+            ...MAP_DELTAS.DEFAULT,
           }}
         >
           {activeLayer === 'meter' && visibleMeters.map((meter) => (
@@ -328,7 +250,7 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
               hasReport={!!getReport(meter.meter_id)}
             />
           ))}
-          {activeLayer === 'accessible' && accessibleSpots.map((spot) => (
+          {activeLayer === 'disability' && accessibleSpots.map((spot) => (
             <DisabilityMarker
               key={`acc-${spot.id}`}
               spot={spot}
@@ -377,7 +299,10 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
           />
         )}
 
-        <LocateButton onPress={recenter} bottom={selected ? 178 : 64} />
+        <LocateButton
+          onPress={recenter}
+          bottom={selected ? LOCATE_BUTTON_BOTTOM.ACTIVE : LOCATE_BUTTON_BOTTOM.DEFAULT}
+        />
 
         {metersLoading && (
           <View style={styles.loadingBadge}>
@@ -429,7 +354,7 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  centered:  { flex: 1, justifyContent: 'center', alignItems: 'center' },
   filterPanel: {
     flexShrink: 0,
   },

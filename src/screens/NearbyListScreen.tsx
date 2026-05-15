@@ -13,6 +13,7 @@ import { useNearbyMotorcycleParking } from '../hooks/useNearbyMotorcycleParking'
 import { useNearbyEvCharging } from '../hooks/useNearbyEvCharging';
 import { TabBar, TabName } from '../components/TabBar';
 import { getMeterTier, TIER_COLORS } from '../components/MeterMarker';
+import { LAYER_COLORS, LAYER_LABELS, LayerKind } from '../constants/layers';
 import { NearbyMeterResult, DisabilityParkingResult, MotorcycleParkingResult, EvChargingResult } from '../types/database';
 import {
   isMeterFreeNow,
@@ -33,22 +34,8 @@ interface Props {
   onSelectMeter: (meter: NearbyMeterResult) => void;
 }
 
-type SpotKind = 'meter' | 'disability' | 'motorcycle' | 'ev';
+type SpotKind = LayerKind;
 type SortKey = 'distance' | 'rate';
-
-const KIND_LABELS: Record<SpotKind, string> = {
-  meter:      'P',
-  disability: '♿',
-  motorcycle: '🏍',
-  ev:         '⚡',
-};
-
-const KIND_COLORS: Record<SpotKind, string> = {
-  meter:      '#6b7280',
-  disability: '#2563eb',
-  motorcycle: '#7c3aed',
-  ev:         '#16a34a',
-};
 
 type AnySpot =
   | { kind: 'meter';      data: NearbyMeterResult }
@@ -120,7 +107,7 @@ export function NearbyListScreen({ onNavigate, onSelectMeter }: Props) {
 
   function renderItem({ item }: { item: AnySpot }) {
     const dist = Math.round(item.data.distance_meters);
-    const kindColor = KIND_COLORS[item.kind];
+    const kindColor = LAYER_COLORS[item.kind];
 
     let dotColor = kindColor;
     let title = '';
@@ -154,7 +141,7 @@ export function NearbyListScreen({ onNavigate, onSelectMeter }: Props) {
       }
       case 'disability': {
         const d = item.data;
-        dotColor = '#2563eb';
+        dotColor = LAYER_COLORS.disability;
         title = 'Accessible Parking';
         sub = `${d.spaces} space${d.spaces !== 1 ? 's' : ''}${d.geo_local_area ? ` · ${d.geo_local_area}` : ''}`;
         break;
@@ -163,7 +150,7 @@ export function NearbyListScreen({ onNavigate, onSelectMeter }: Props) {
         const m = item.data;
         const rate = getMotoCurrentRate(m);
         const isFree = rate == null || rate === 0;
-        dotColor = isFree ? '#5ec26a' : '#7c3aed';
+        dotColor = isFree ? TIER_COLORS.free : LAYER_COLORS.motorcycle;
         title = isFree ? 'Free now' : `$${rate!.toFixed(2)}/hr`;
         payTag = m.credit_card ? 'Card' : 'Cash';
         const tl = getMotoCurrentTimeLimit(m);
@@ -171,7 +158,7 @@ export function NearbyListScreen({ onNavigate, onSelectMeter }: Props) {
         break;
       }
       case 'ev': {
-        dotColor = '#16a34a';
+        dotColor = LAYER_COLORS.ev;
         title = 'EV Charging';
         sub = item.data.lot_operator ?? item.data.geo_local_area ?? '';
         break;
@@ -187,7 +174,7 @@ export function NearbyListScreen({ onNavigate, onSelectMeter }: Props) {
         activeOpacity={isSelectable ? 0.7 : 1}
       >
         <View style={[styles.kindBadge, { backgroundColor: kindColor + '22', borderColor: kindColor + '55' }]}>
-          <Text style={[styles.kindLabel, { color: kindColor }]}>{KIND_LABELS[item.kind]}</Text>
+          <Text style={[styles.kindLabel, { color: kindColor }]}>{LAYER_LABELS[item.kind]}</Text>
         </View>
         <View style={[styles.dot, { backgroundColor: dotColor }]} />
         <View style={styles.rowBody}>
@@ -224,7 +211,7 @@ export function NearbyListScreen({ onNavigate, onSelectMeter }: Props) {
       <View style={[styles.kindBar, { backgroundColor: surface, borderBottomColor: border }]}>
         {(['meter', 'disability', 'motorcycle', 'ev'] as SpotKind[]).map((k) => {
           const active = activeKind === k;
-          const color = KIND_COLORS[k];
+          const color = LAYER_COLORS[k];
           return (
             <TouchableOpacity
               key={k}
@@ -233,7 +220,7 @@ export function NearbyListScreen({ onNavigate, onSelectMeter }: Props) {
               activeOpacity={0.7}
             >
               <Text style={[styles.kindChipLabel, { color: active ? color : text3 }]}>
-                {KIND_LABELS[k]}
+                {LAYER_LABELS[k]}
               </Text>
             </TouchableOpacity>
           );
