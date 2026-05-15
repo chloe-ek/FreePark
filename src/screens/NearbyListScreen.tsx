@@ -263,22 +263,24 @@ export function NearbyListScreen({ onNavigate, onSelectMeter }: Props) {
         })}
       </View>
 
-      {loading ? (
-        <ActivityIndicator style={styles.loader} color={GREEN} />
-      ) : anyError ? (
-        <Text style={[styles.empty, { color: '#ef4444' }]}>
-          Failed to load spots. Check your connection.
-        </Text>
-      ) : combined.length === 0 ? (
-        <Text style={[styles.empty, { color: text3 }]}>No spots found nearby</Text>
-      ) : (
-        <FlatList
-          data={combined}
-          keyExtractor={(item) => `${item.kind}-${item.data.id}`}
-          renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
-        />
-      )}
+      <View style={styles.content}>
+        {loading ? (
+          <ActivityIndicator style={styles.loader} color={GREEN} />
+        ) : anyError ? (
+          <Text style={[styles.empty, { color: '#ef4444' }]}>
+            Failed to load spots. Check your connection.
+          </Text>
+        ) : combined.length === 0 ? (
+          <Text style={[styles.empty, { color: text3 }]}>No spots found nearby</Text>
+        ) : (
+          <FlatList
+            data={combined}
+            keyExtractor={(item) => `${item.kind}-${item.data.id}`}
+            renderItem={renderItem}
+            contentContainerStyle={styles.listContent}
+          />
+        )}
+      </View>
 
       <TabBar active="nearby" onNavigate={onNavigate} />
     </View>
@@ -287,6 +289,7 @@ export function NearbyListScreen({ onNavigate, onSelectMeter }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  content: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'baseline',
