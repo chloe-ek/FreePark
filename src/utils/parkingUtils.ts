@@ -1,4 +1,5 @@
 import type { ParkingMeter, NearbyMeterResult, MotorcycleParkingResult } from "../types/database";
+import { BUSINESS_HOURS_MINS } from "../constants/businessHours";
 
 type Meter = ParkingMeter | NearbyMeterResult;
 
@@ -31,7 +32,7 @@ function isRushHour(
   end: string | null,
 ): boolean {
   if (!start || !end) return false;
-  if (dayOfWeek === 0 || dayOfWeek === 6) return false; // skip weekends
+  if (dayOfWeek === 0 || dayOfWeek === 6) return false;
   return currentMinutes >= toMinutes(start) && currentMinutes < toMinutes(end);
 }
 
@@ -52,13 +53,14 @@ export function isMeterProhibited(meter: Meter): boolean {
 function getRateAndLimit(meter: Meter, currentMinutes: number, dayOfWeek: number) {
   const isSat = dayOfWeek === 6;
   const isSun = dayOfWeek === 0;
+  const { DAY_START, EVENING_START, EVENING_END } = BUSINESS_HOURS_MINS;
 
-  if (currentMinutes >= 9 * 60 && currentMinutes < 18 * 60) {
+  if (currentMinutes >= DAY_START && currentMinutes < EVENING_START) {
     if (isSat) return { rate: meter.rate_sa_9am_6pm,  limit: meter.time_limit_sa_9am_6pm };
     if (isSun) return { rate: meter.rate_su_9am_6pm,  limit: meter.time_limit_su_9am_6pm };
     return            { rate: meter.rate_9am_6pm,      limit: meter.time_limit_9am_6pm };
   }
-  if (currentMinutes >= 18 * 60 && currentMinutes < 22 * 60) {
+  if (currentMinutes >= EVENING_START && currentMinutes < EVENING_END) {
     if (isSat) return { rate: meter.rate_sa_6pm_10pm, limit: meter.time_limit_sa_6pm_10pm };
     if (isSun) return { rate: meter.rate_su_6pm_10pm, limit: meter.time_limit_su_6pm_10pm };
     return            { rate: meter.rate_6pm_10pm,     limit: meter.time_limit_6pm_10pm };
@@ -68,7 +70,6 @@ function getRateAndLimit(meter: Meter, currentMinutes: number, dayOfWeek: number
 
 export function isMeterFreeNow(meter: Meter): boolean {
   if (isMeterProhibited(meter)) return false;
-
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const { rate } = getRateAndLimit(meter, currentMinutes, now.getDay());
@@ -83,21 +84,20 @@ export function getCurrentRate(meter: Meter): number | null {
   return rate;
 }
 
-// Returns the earliest time after which ALL meters in the list are free,
-// derived from which rate slots are actually populated in the data.
 export function getCurrentTimeLimit(meter: Meter): number | null {
   const now = new Date();
   const mins = now.getHours() * 60 + now.getMinutes();
   const dow = now.getDay();
   const isSat = dow === 6;
   const isSun = dow === 0;
+  const { DAY_START, EVENING_START, EVENING_END } = BUSINESS_HOURS_MINS;
 
-  if (mins >= 9 * 60 && mins < 18 * 60) {
+  if (mins >= DAY_START && mins < EVENING_START) {
     return isSat ? meter.time_limit_sa_9am_6pm
       : isSun ? meter.time_limit_su_9am_6pm
       : meter.time_limit_9am_6pm;
   }
-  if (mins >= 18 * 60 && mins < 22 * 60) {
+  if (mins >= EVENING_START && mins < EVENING_END) {
     return isSat ? meter.time_limit_sa_6pm_10pm
       : isSun ? meter.time_limit_su_6pm_10pm
       : meter.time_limit_6pm_10pm;
@@ -113,19 +113,18 @@ export function minutesUntilFree(meter: Meter): number | null {
   const dow = now.getDay();
   const isSat = dow === 6;
   const isSun = dow === 0;
+  const { DAY_START, EVENING_START, EVENING_END } = BUSINESS_HOURS_MINS;
 
-  if (currentMinutes >= 9 * 60 && currentMinutes < 18 * 60) {
+  if (currentMinutes >= DAY_START && currentMinutes < EVENING_START) {
     const rate6to10 = isSat ? meter.rate_sa_6pm_10pm
       : isSun ? meter.rate_su_6pm_10pm
       : meter.rate_6pm_10pm;
-    if (rate6to10 == null || rate6to10 === 0) return 18 * 60 - currentMinutes;
-    return 22 * 60 - currentMinutes;
+    if (rate6to10 == null || rate6to10 === 0) return EVENING_START - currentMinutes;
+    return EVENING_END - currentMinutes;
   }
-
-  if (currentMinutes >= 18 * 60 && currentMinutes < 22 * 60) {
-    return 22 * 60 - currentMinutes;
+  if (currentMinutes >= EVENING_START && currentMinutes < EVENING_END) {
+    return EVENING_END - currentMinutes;
   }
-
   return null;
 }
 
@@ -185,7 +184,6 @@ export function getCurrentRateLabel(meter: Meter): string {
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const { rate, limit } = getRateAndLimit(meter, currentMinutes, now.getDay());
-
   if (rate == null) return "Free";
   if (rate === 0)   return `Free${limit ? ` (${limit} min)` : ""}`;
   return `$${rate.toFixed(2)}/hr${limit ? ` · ${limit} min` : ""}`;
@@ -198,8 +196,9 @@ function getMotoRateAndLimit(
   currentMinutes: number,
   dayOfWeek: number,
 ): { rate: number | null; limit: number | null } {
-  const is9to6  = currentMinutes >= 9 * 60 && currentMinutes < 18 * 60;
-  const is6to10 = currentMinutes >= 18 * 60 && currentMinutes < 22 * 60;
+  const { DAY_START, EVENING_START, EVENING_END } = BUSINESS_HOURS_MINS;
+  const is9to6  = currentMinutes >= DAY_START     && currentMinutes < EVENING_START;
+  const is6to10 = currentMinutes >= EVENING_START && currentMinutes < EVENING_END;
 
   if (dayOfWeek >= 1 && dayOfWeek <= 5) {
     if (is9to6)  return { rate: spot.rate_9am_6pm,      limit: spot.time_limit_9am_6pm };

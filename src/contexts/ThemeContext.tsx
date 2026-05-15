@@ -2,8 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Theme, LIGHT_THEME, DARK_THEME } from '../theme';
-
-const STORAGE_KEY = '@freepark_theme';
+import { STORAGE_KEYS } from '../constants/storage';
 
 interface ThemeContextValue {
   theme: Theme;
@@ -20,7 +19,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [override, setOverride] = useState<'light' | 'dark' | null>(null);
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
+    AsyncStorage.getItem(STORAGE_KEYS.THEME)
       .then((saved) => {
         if (saved === 'light' || saved === 'dark') setOverride(saved);
       })
@@ -35,7 +34,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       const next = prev === null
         ? (scheme === 'dark' ? 'light' : 'dark')
         : (prev === 'dark' ? 'light' : 'dark');
-      AsyncStorage.setItem(STORAGE_KEY, next);
+      AsyncStorage.setItem(STORAGE_KEYS.THEME, next);
       return next;
     });
   }

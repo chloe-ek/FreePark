@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const STORAGE_KEY = '@freepark_settings';
+import { STORAGE_KEYS } from '../constants/storage';
 
 export interface Settings {
   radiusMeters: number;
@@ -26,14 +25,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
+    AsyncStorage.getItem(STORAGE_KEYS.SETTINGS)
       .then((raw) => {
         if (raw) {
           try {
             const saved = JSON.parse(raw) as Partial<Settings>;
             setSettings((s) => ({ ...s, ...saved }));
           } catch {
-            console.warn('[SettingsContext] Stored settings corrupted, using defaults');
+            if (__DEV__) console.warn('[SettingsContext] Stored settings corrupted, using defaults');
           }
         }
         setLoaded(true);
@@ -41,21 +40,16 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       .catch(() => setLoaded(true));
   }, []);
 
-  // Sync to storage only after initial load to avoid overwriting with defaults
   useEffect(() => {
     if (!loaded) return;
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    AsyncStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
   }, [settings, loaded]);
-
-  function update(patch: Partial<Settings>) {
-    setSettings((prev) => ({ ...prev, ...patch }));
-  }
 
   return (
     <SettingsContext.Provider
       value={{
         settings,
-        setRadiusMeters: (v) => update({ radiusMeters: v }),
+        setRadiusMeters: (v) => setSettings((prev) => ({ ...prev, radiusMeters: v })),
       }}
     >
       {children}

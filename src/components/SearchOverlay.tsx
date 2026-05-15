@@ -7,6 +7,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { FEATURED, SUGGESTIONS, Suggestion } from '../data/suggestions';
 import { searchPlaces, getPlaceCoords, ResolvedPlace } from '../lib/geocoding';
 import { GREEN } from '../theme';
+import { SEARCH_CONFIG } from '../constants/search';
 
 interface Props {
   onClose: () => void;
@@ -39,19 +40,19 @@ export function SearchOverlay({ onClose, onSelect }: Props) {
   function handleQueryChange(text: string) {
     setQuery(text);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (text.length < 2) {
+    if (text.length < SEARCH_CONFIG.MIN_QUERY_LENGTH) {
       setApiResults([]);
       setSearching(false);
       return;
     }
 
-    // Check local dataset first — only call Places API if local results < 3
+    // Check local dataset first — only call Places API if local results < threshold
     const q = text.toLowerCase();
     const localHits = SUGGESTIONS.filter(
       (s) => s.name.toLowerCase().includes(q) || s.sub.toLowerCase().includes(q),
     );
 
-    if (localHits.length >= 3) {
+    if (localHits.length >= SEARCH_CONFIG.LOCAL_RESULTS_THRESHOLD) {
       setApiResults([]);
       setSearching(false);
       return;
@@ -62,7 +63,7 @@ export function SearchOverlay({ onClose, onSelect }: Props) {
       const results = await searchPlaces(text);
       setApiResults(results);
       setSearching(false);
-    }, 350);
+    }, SEARCH_CONFIG.DEBOUNCE_MS);
   }
 
   async function handleSelectSuggestion(s: Suggestion) {
@@ -83,7 +84,7 @@ export function SearchOverlay({ onClose, onSelect }: Props) {
     }
   }
 
-  const showSuggestions = query.length < 2;
+  const showSuggestions = query.length < SEARCH_CONFIG.MIN_QUERY_LENGTH;
 
   const localResults: Suggestion[] = showSuggestions
     ? FEATURED
