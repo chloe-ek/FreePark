@@ -3,8 +3,8 @@ const LOCATION_PERMISSION_TEXT =
 
 module.exports = {
   expo: {
-    name: 'FreePark-expo',
-    slug: 'FreePark-expo',
+    name: 'FreePark',
+    slug: 'FreePark',
     version: '1.0.0',
     orientation: 'portrait',
     icon: './assets/icon.png',
@@ -12,11 +12,11 @@ module.exports = {
     splash: {
       image: './assets/splash-icon.png',
       resizeMode: 'contain',
-      backgroundColor: '#ffffff',
+      backgroundColor: '#fafafa',
     },
     ios: {
       supportsTablet: true,
-      bundleIdentifier: 'com.chloe-ek.FreePark-expo',
+      bundleIdentifier: 'com.chloe-ek.FreePark',
       infoPlist: {
         NSLocationWhenInUseUsageDescription: LOCATION_PERMISSION_TEXT,
       },
