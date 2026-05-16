@@ -4,7 +4,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import type { MotorcycleParkingResult } from '../types/database';
 import { GREEN } from '../theme';
 import { navigateTo } from '../utils/navigation';
-import { getMotoCurrentRate, getMotoCurrentTimeLimit } from '../utils/parkingUtils';
+import { getMotoCurrentRate, getMotoCurrentTimeLimit, isMotoRushHour, getRushHours } from '../utils/parkingUtils';
 import { BottomSheet, InfoGrid } from './BottomSheet';
 
 interface Props {
@@ -16,12 +16,16 @@ export function MotorcycleSheet({ spot, onDismiss }: Props) {
   const { theme } = useTheme();
   const { text } = theme.colors;
 
-  const rate = getMotoCurrentRate(spot);
-  const isFree = rate == null || rate === 0;
-  const rateLabel = isFree ? 'Free now' : `$${rate!.toFixed(2)}/hr`;
+  const rushHour = isMotoRushHour(spot);
+  const rushHours = getRushHours(spot);
 
-  const timeLimit = getMotoCurrentTimeLimit(spot);
-  const timeLimitLabel = timeLimit == null ? 'No limit'
+  const rate = rushHour ? null : getMotoCurrentRate(spot);
+  const isFree = !rushHour && (rate == null || rate === 0);
+  const rateLabel = rushHour ? 'No parking — Rush hour' : isFree ? 'Free now' : `$${rate!.toFixed(2)}/hr`;
+
+  const timeLimit = rushHour ? null : getMotoCurrentTimeLimit(spot);
+  const timeLimitLabel = rushHour ? '—'
+    : timeLimit == null ? 'No limit'
     : timeLimit >= 60 ? `${timeLimit / 60} hr` : `${timeLimit} min`;
 
   const rows: [string, string][] = [
@@ -30,7 +34,6 @@ export function MotorcycleSheet({ spot, onDismiss }: Props) {
     ['Card accepted', spot.credit_card ? 'Yes' : 'No'],
     ['Area',          spot.geo_local_area ?? '—'],
     ['Distance',      `${Math.round(spot.distance_meters)} m`],
-    ...(spot.rush_hr ? [['Rush hour', spot.rush_hr] as [string, string]] : []),
   ];
 
   return (
@@ -51,6 +54,24 @@ export function MotorcycleSheet({ spot, onDismiss }: Props) {
           </Text>
         </View>
       </View>
+      {rushHour && rushHours.length > 0 && (
+        <View style={styles.rushBanner}>
+          <Text style={styles.rushTitle}>No parking — Rush hour (Mon–Fri)</Text>
+          {rushHours.map((w) => (
+            <Text key={w.label} style={styles.rushTime}>{w.label}</Text>
+          ))}
+        </View>
+      )}
+
+      {!rushHour && rushHours.length > 0 && (
+        <View style={styles.rushWarning}>
+          <Text style={styles.rushWarningTitle}>Rush hour restriction (Mon–Fri)</Text>
+          {rushHours.map((w) => (
+            <Text key={w.label} style={styles.rushWarningTime}>{w.label} — No parking</Text>
+          ))}
+        </View>
+      )}
+
       <InfoGrid rows={rows} />
     </BottomSheet>
   );
@@ -63,4 +84,24 @@ const styles = StyleSheet.create({
   headerText: { flex: 1 },
   title:      { fontSize: 15, fontWeight: '600' },
   subtitle:   { fontSize: 12, fontWeight: '500', marginTop: 2 },
+  rushBanner: {
+    backgroundColor: 'rgba(239,68,68,0.12)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.3)',
+    padding: 10,
+    marginBottom: 12,
+  },
+  rushTitle:        { color: '#ef4444', fontSize: 12, fontWeight: '700', marginBottom: 2 },
+  rushTime:         { color: '#ef4444', fontSize: 12, fontWeight: '500' },
+  rushWarning: {
+    backgroundColor: 'rgba(249,115,22,0.1)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(249,115,22,0.25)',
+    padding: 10,
+    marginBottom: 12,
+  },
+  rushWarningTitle: { color: '#f97316', fontSize: 11, fontWeight: '700', marginBottom: 2 },
+  rushWarningTime:  { color: '#f97316', fontSize: 11 },
 });

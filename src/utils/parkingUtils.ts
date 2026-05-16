@@ -3,9 +3,71 @@ import { BUSINESS_HOURS_MINS } from "../constants/businessHours";
 
 type Meter = ParkingMeter | NearbyMeterResult;
 
+interface HasRushHours {
+  am_rush_start: string | null;
+  am_rush_end:   string | null;
+  pm_rush_start: string | null;
+  pm_rush_end:   string | null;
+}
+
 const DAY_ABBR: Record<number, string> = {
   0: "Sun", 1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat",
 };
+
+function nthWeekday(year: number, month: number, weekday: number, n: number): Date {
+  const d = new Date(year, month - 1, 1);
+  d.setDate(1 + ((weekday - d.getDay() + 7) % 7) + (n - 1) * 7);
+  return d;
+}
+
+function easterSunday(year: number): Date {
+  const a = year % 19, b = Math.floor(year / 100), c = year % 100;
+  const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4), k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month - 1, day);
+}
+
+export function isBCStatutoryHoliday(date: Date): boolean {
+  const y = date.getFullYear(), mo = date.getMonth() + 1, d = date.getDate();
+
+  // Fixed dates
+  if (mo === 1  && d === 1)  return true; // New Year's Day
+  if (mo === 7  && d === 1)  return true; // Canada Day
+  if (mo === 9  && d === 30) return true; // National Day for Truth and Reconciliation
+  if (mo === 11 && d === 11) return true; // Remembrance Day
+  if (mo === 12 && d === 25) return true; // Christmas Day
+
+  // Family Day: 3rd Monday in February
+  if (mo === 2  && d === nthWeekday(y, 2, 1, 3).getDate())  return true;
+
+  // Good Friday: 2 days before Easter Sunday
+  const easter = easterSunday(y);
+  const goodFriday = new Date(easter);
+  goodFriday.setDate(easter.getDate() - 2);
+  if (mo === goodFriday.getMonth() + 1 && d === goodFriday.getDate()) return true;
+
+  // Victoria Day: last Monday on or before May 24
+  const may24 = new Date(y, 4, 24);
+  const victoriaDay = new Date(y, 4, 24 - ((may24.getDay() + 6) % 7));
+  if (mo === 5  && d === victoriaDay.getDate()) return true;
+
+  // BC Day: 1st Monday in August
+  if (mo === 8  && d === nthWeekday(y, 8, 1, 1).getDate())  return true;
+
+  // Labour Day: 1st Monday in September
+  if (mo === 9  && d === nthWeekday(y, 9, 1, 1).getDate())  return true;
+
+  // Thanksgiving: 2nd Monday in October
+  if (mo === 10 && d === nthWeekday(y, 10, 1, 2).getDate()) return true;
+
+  return false;
+}
 
 function toMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number);
@@ -41,12 +103,13 @@ export function isMeterProhibited(meter: Meter): boolean {
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const todayAbbr = DAY_ABBR[now.getDay()];
   const dow = now.getDay();
+  const holiday = isBCStatutoryHoliday(now);
 
   return (
     isProhibited(currentMinutes, todayAbbr, meter.prohibition_start, meter.prohibition_end, meter.prohibition_days) ||
     isProhibited(currentMinutes, todayAbbr, meter.prohibition2_start, meter.prohibition2_end, meter.prohibition2_days) ||
-    isRushHour(currentMinutes, dow, meter.am_rush_start, meter.am_rush_end) ||
-    isRushHour(currentMinutes, dow, meter.pm_rush_start, meter.pm_rush_end)
+    (!holiday && isRushHour(currentMinutes, dow, meter.am_rush_start, meter.am_rush_end)) ||
+    (!holiday && isRushHour(currentMinutes, dow, meter.pm_rush_start, meter.pm_rush_end))
   );
 }
 
@@ -160,7 +223,7 @@ function fmt12h(hhmm: string): string {
 
 export interface RushHourWindow { label: string; start: string; end: string }
 
-export function getRushHours(meter: Meter): RushHourWindow[] {
+export function getRushHours(meter: HasRushHours): RushHourWindow[] {
   const windows: RushHourWindow[] = [];
   if (meter.am_rush_start && meter.am_rush_end) {
     windows.push({
@@ -190,6 +253,18 @@ export function getCurrentRateLabel(meter: Meter): string {
 }
 
 // ─── Motorcycle parking ───────────────────────────────────────────────────────
+
+export function isMotoRushHour(spot: MotorcycleParkingResult): boolean {
+  const now = new Date();
+  if (isBCStatutoryHoliday(now)) return false;
+  const dow = now.getDay();
+  const mins = now.getHours() * 60 + now.getMinutes();
+  return (
+    isRushHour(mins, dow, spot.am_rush_start, spot.am_rush_end) ||
+    isRushHour(mins, dow, spot.pm_rush_start, spot.pm_rush_end)
+  );
+}
+
 
 function getMotoRateAndLimit(
   spot: MotorcycleParkingResult,

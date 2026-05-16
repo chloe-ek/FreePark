@@ -191,7 +191,10 @@ export interface MotorcycleParkingResult {
   time_limit_su_9am_6pm: number | null;
   time_limit_su_6pm_10pm: number | null;
   credit_card: boolean;
-  rush_hr: string | null;
+  am_rush_start: string | null;
+  am_rush_end: string | null;
+  pm_rush_start: string | null;
+  pm_rush_end: string | null;
   geo_local_area: string | null;
   latitude: number;
   longitude: number;

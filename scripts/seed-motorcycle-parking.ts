@@ -35,6 +35,38 @@ interface VancouverMoto {
   geo_point_2d: { lat: number; lon: number };
 }
 
+function parseOneWindow(s: string): { start: string; end: string } | null {
+  // Handles "7-10am", "3-6pm", "7-9:30am" — period applies to both start and end
+  const m = s.trim().match(/^(\d{1,2})-(\d{1,2})(?::(\d{2}))?(am|pm)$/i);
+  if (!m) return null;
+  let sh = parseInt(m[1], 10), eh = parseInt(m[2], 10);
+  const endMins = m[3] ? parseInt(m[3], 10) : 0;
+  const isPm = m[4].toLowerCase() === 'pm';
+  if (isPm)  { if (sh !== 12) sh += 12; if (eh !== 12) eh += 12; }
+  else       { if (sh === 12) sh = 0;   if (eh === 12) eh = 0; }
+  return {
+    start: `${String(sh).padStart(2, '0')}:00`,
+    end:   `${String(eh).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`,
+  };
+}
+
+function parseRushHr(raw: string | null): {
+  am_rush_start: string | null; am_rush_end: string | null;
+  pm_rush_start: string | null; pm_rush_end: string | null;
+} {
+  const none = { am_rush_start: null, am_rush_end: null, pm_rush_start: null, pm_rush_end: null };
+  if (!raw || raw.trim().toLowerCase() === 'n/a') return none;
+  let am_rush_start = null, am_rush_end = null, pm_rush_start = null, pm_rush_end = null;
+  for (const part of raw.split('/')) {
+    const isPm = /pm$/i.test(part.trim());
+    const parsed = parseOneWindow(part.trim());
+    if (!parsed) continue;
+    if (isPm) { pm_rush_start = parsed.start; pm_rush_end = parsed.end; }
+    else      { am_rush_start = parsed.start; am_rush_end = parsed.end; }
+  }
+  return { am_rush_start, am_rush_end, pm_rush_start, pm_rush_end };
+}
+
 function parseRate(raw: string | null): number | null {
   if (!raw) return null;
   const s = raw.trim().toLowerCase();
@@ -91,7 +123,7 @@ async function main() {
       time_limit_su_9am_6pm:  parseTimeLimit(r.t_su_9a_6p),
       time_limit_su_6pm_10pm: parseTimeLimit(r.t_su_6p_10),
       credit_card:            r.creditcard?.trim().toLowerCase() === 'yes',
-      rush_hr:                r.rush_hr ?? null,
+      ...parseRushHr(r.rush_hr ?? null),
       geo_local_area:         r.geo_local_area ?? null,
       latitude:               r.geo_point_2d.lat,
       longitude:              r.geo_point_2d.lon,
