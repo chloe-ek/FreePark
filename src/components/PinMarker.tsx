@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Marker } from 'react-native-maps';
 
@@ -11,14 +11,20 @@ interface Props {
 }
 
 export function PinMarker({ coordinate, color, icon, iconSize = 12, onPress }: Props) {
+  const [tracksViewChanges, setTracksViewChanges] = useState(true);
+
   return (
     <Marker
       coordinate={coordinate}
       anchor={{ x: 0.5, y: 0.5 }}
-      tracksViewChanges={false}
+      tracksViewChanges={tracksViewChanges}
       onPress={onPress}
     >
-      <View style={[styles.pin, { backgroundColor: color }]}>
+      <View
+        style={[styles.pin, { backgroundColor: color }]}
+        collapsable={false}
+        onLayout={() => setTracksViewChanges(false)}
+      >
         <Text style={[styles.icon, { fontSize: iconSize, lineHeight: iconSize + 2 }]}>{icon}</Text>
       </View>
     </Marker>

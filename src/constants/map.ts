@@ -7,3 +7,7 @@ export const LOCATE_BUTTON_BOTTOM = {
   ACTIVE:  178,
   DEFAULT: 64,
 } as const;
+
+// Approximate sheet height used to offset the map when a marker is selected,
+// so the marker sits in the visible area above the sheet. Adjust if off.
+export const SHEET_HEIGHT_PX = 300;

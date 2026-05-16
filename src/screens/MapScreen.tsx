@@ -1,43 +1,55 @@
-import React, { useRef, useState, useMemo, useEffect } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity, Linking } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Linking, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import MapView, { PROVIDER_GOOGLE, Marker } from 'react-native-maps';
-import { useLocation } from '../hooks/useLocation';
-import { useNearbyMeters } from '../hooks/useNearbyMeters';
-import { useTheme } from '../contexts/ThemeContext';
-import { useSettings } from '../contexts/SettingsContext';
-import { MeterMarker } from '../components/MeterMarker';
-import { MeterSheet } from '../components/MeterSheet';
-import { FloatingPill } from '../components/FloatingPill';
-import { SelectChip } from '../components/SelectChip';
-import { FilterDropdown } from '../components/FilterDropdown';
-import { SearchBar } from '../components/SearchBar';
-import { SearchOverlay } from '../components/SearchOverlay';
-import { LocateButton } from '../components/LocateButton';
-import { TabBar, TabName } from '../components/TabBar';
-import { DARK_MAP_STYLE, GREEN } from '../theme';
-import { isMeterFreeNow, getFreeAfterTime } from '../utils/parkingUtils';
-import { NearbyMeterResult, DisabilityParkingResult, MotorcycleParkingResult, EvChargingResult } from '../types/database';
-import { ResolvedPlace } from '../lib/geocoding';
-import { VANCOUVER_CENTER } from '../constants/geo';
-import { useNearbyDisabilityParking } from '../hooks/useNearbyDisabilityParking';
-import { useNearbyMotorcycleParking } from '../hooks/useNearbyMotorcycleParking';
-import { useNearbyEvCharging } from '../hooks/useNearbyEvCharging';
 import { DisabilityMarker } from '../components/DisabilityMarker';
 import { DisabilitySheet } from '../components/DisabilitySheet';
-import { MotorcycleMarker } from '../components/MotorcycleMarker';
-import { MotorcycleSheet } from '../components/MotorcycleSheet';
 import { EvMarker } from '../components/EvMarker';
 import { EvSheet } from '../components/EvSheet';
-import { useSpotReports } from '../hooks/useSpotReports';
-import { useMapFilters } from '../hooks/useMapFilters';
-import { LayerKind } from '../constants/layers';
-import { MAP_DELTAS, LOCATE_BUTTON_BOTTOM } from '../constants/map';
+import { FilterDropdown } from '../components/FilterDropdown';
+import { FloatingPill } from '../components/FloatingPill';
+import { LocateButton } from '../components/LocateButton';
+import { MeterMarker } from '../components/MeterMarker';
+import { MeterSheet } from '../components/MeterSheet';
+import { MotorcycleMarker } from '../components/MotorcycleMarker';
+import { MotorcycleSheet } from '../components/MotorcycleSheet';
+import { SearchBar } from '../components/SearchBar';
+import { SearchOverlay } from '../components/SearchOverlay';
+import { SelectChip } from '../components/SelectChip';
+import { TabBar, TabName } from '../components/TabBar';
 import {
-  PRICE_FILTER_OPTIONS,
   DURATION_FILTER_OPTIONS,
   PAYMENT_FILTER_OPTIONS,
+  PRICE_FILTER_OPTIONS,
 } from '../constants/filters';
+import { isInsideVancouver, VANCOUVER_CENTER } from '../constants/geo';
+import { LayerKind, LAYER_EMPTY_LABELS } from '../constants/layers';
+import { LOCATE_BUTTON_BOTTOM, MAP_DELTAS, SHEET_HEIGHT_PX } from '../constants/map';
+import { useSettings } from '../contexts/SettingsContext';
+import { useTheme } from '../contexts/ThemeContext';
+import { useLocation } from '../hooks/useLocation';
+import { useMapFilters } from '../hooks/useMapFilters';
+import { useNearbyDisabilityParking } from '../hooks/useNearbyDisabilityParking';
+import { useNearbyEvCharging } from '../hooks/useNearbyEvCharging';
+import { useNearbyMeters } from '../hooks/useNearbyMeters';
+import { useNearbyMotorcycleParking } from '../hooks/useNearbyMotorcycleParking';
+import { useSpotReports } from '../hooks/useSpotReports';
+import { ResolvedPlace } from '../lib/geocoding';
+import { DARK_MAP_STYLE, GREEN } from '../theme';
+import { DisabilityParkingResult, EvChargingResult, MotorcycleParkingResult, NearbyMeterResult } from '../types/database';
+import { getFreeAfterTime, isMeterFreeNow } from '../utils/parkingUtils';
+
+function TapPinMarker({ coordinate }: { coordinate: { latitude: number; longitude: number } }) {
+  const [tracksViewChanges, setTracksViewChanges] = useState(true);
+  return (
+    <Marker coordinate={coordinate} anchor={{ x: 0.5, y: 1.0 }} tracksViewChanges={tracksViewChanges}>
+      <View collapsable={false} onLayout={() => setTracksViewChanges(false)}>
+        <Text style={{ fontSize: 28 }}>📍</Text>
+      </View>
+    </Marker>
+  );
+}
+
 
 type Selection =
   | { kind: 'meter';      item: NearbyMeterResult }
@@ -54,8 +66,11 @@ interface Props {
 
 export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props) {
   const mapRef = useRef<MapView>(null);
+  const mapReadyRef = useRef(false);
+  const pendingFocusRef = useRef<{ lat: number; lng: number } | null>(null);
   const markerPressedRef = useRef(false);
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const { theme } = useTheme();
   const { settings } = useSettings();
   const { latitude, longitude, loading: locLoading, error: locError, permissionDenied } = useLocation();
@@ -103,11 +118,7 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
 
   useEffect(() => {
     if (!pendingFocusMeter) return;
-    mapRef.current?.animateToRegion({
-      latitude:  pendingFocusMeter.latitude,
-      longitude: pendingFocusMeter.longitude,
-      ...MAP_DELTAS.FOCUS,
-    });
+    animateToMarker(pendingFocusMeter.latitude, pendingFocusMeter.longitude);
     setSelection({ kind: 'meter', item: pendingFocusMeter });
     setQueryCenter({ name: '', sub: '', lat: pendingFocusMeter.latitude, lng: pendingFocusMeter.longitude });
     onClearFocus?.();
@@ -120,6 +131,45 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
     [visibleMeters],
   );
   const freeAfterTime = useMemo(() => getFreeAfterTime(meters), [meters]);
+
+  const emptyHint = useMemo((): 'area' | 'filters' | null => {
+    if (queryLat == null || queryLng == null || !isInsideVancouver(queryLat, queryLng)) return null;
+    switch (activeLayer) {
+      case 'meter':
+        if (metersLoading) return null;
+        if (meters.length > 0 && visibleMeters.length === 0) return 'filters';
+        return meters.length === 0 ? 'area' : null;
+      case 'disability':
+        return accessibleSpots.length === 0 ? 'area' : null;
+      case 'motorcycle':
+        if (motoSpots.length > 0 && visibleMotoSpots.length === 0) return 'filters';
+        return motoSpots.length === 0 ? 'area' : null;
+      case 'ev':
+        return evStations.length === 0 ? 'area' : null;
+    }
+  }, [activeLayer, meters, visibleMeters, accessibleSpots, motoSpots, visibleMotoSpots, evStations, metersLoading, queryLat, queryLng]);
+
+  function animateToMarker(lat: number, lng: number) {
+    if (!mapReadyRef.current) {
+      pendingFocusRef.current = { lat, lng };
+      return;
+    }
+    const latOffset = (SHEET_HEIGHT_PX / windowHeight / 2) * MAP_DELTAS.FOCUS.latitudeDelta;
+    mapRef.current?.animateToRegion({
+      latitude: lat - latOffset,
+      longitude: lng,
+      ...MAP_DELTAS.FOCUS,
+    });
+  }
+
+  function handleMapReady() {
+    mapReadyRef.current = true;
+    if (pendingFocusRef.current) {
+      const { lat, lng } = pendingFocusRef.current;
+      pendingFocusRef.current = null;
+      animateToMarker(lat, lng);
+    }
+  }
 
   function recenter() {
     if (latitude == null || longitude == null) return;
@@ -154,6 +204,9 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
   function handlePinPress(meter: NearbyMeterResult) {
     if (searching) return;
     markerPressedRef.current = true;
+    if (!(selection?.kind === 'meter' && selection.item.id === meter.id)) {
+      animateToMarker(meter.latitude, meter.longitude);
+    }
     setSelection((prev) => (prev?.kind === 'meter' && prev.item.id === meter.id ? null : { kind: 'meter', item: meter }));
   }
 
@@ -229,6 +282,13 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
         )}
       </View>
 
+      {/* Out-of-coverage banner */}
+      {queryLat != null && queryLng != null && !isInsideVancouver(queryLat, queryLng) && (
+        <View style={styles.coverageBanner}>
+          <Text style={styles.coverageBannerText}>Outside Vancouver — no parking data available</Text>
+        </View>
+      )}
+
       {/* Location error banner */}
       {locError && (
         <View style={styles.locationBanner}>
@@ -252,6 +312,7 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
           customMapStyle={theme.scheme === 'dark' ? DARK_MAP_STYLE : undefined}
           showsUserLocation
           showsMyLocationButton={false}
+          onMapReady={handleMapReady}
           onPress={handleMapPress}
           initialRegion={{
             latitude:  queryLat ?? VANCOUVER_CENTER.latitude,
@@ -273,6 +334,9 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
               spot={spot}
               onPress={(s) => {
                 markerPressedRef.current = true;
+                if (!(selection?.kind === 'disability' && selection.item.id === s.id)) {
+                  animateToMarker(s.latitude, s.longitude);
+                }
                 setSelection((prev) => (prev?.kind === 'disability' && prev.item.id === s.id ? null : { kind: 'disability', item: s }));
               }}
             />
@@ -283,6 +347,9 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
               spot={spot}
               onPress={(s) => {
                 markerPressedRef.current = true;
+                if (!(selection?.kind === 'motorcycle' && selection.item.id === s.id)) {
+                  animateToMarker(s.latitude, s.longitude);
+                }
                 setSelection((prev) => (prev?.kind === 'motorcycle' && prev.item.id === s.id ? null : { kind: 'motorcycle', item: s }));
               }}
             />
@@ -293,22 +360,19 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
               station={station}
               onPress={(s) => {
                 markerPressedRef.current = true;
+                if (!(selection?.kind === 'ev' && selection.item.id === s.id)) {
+                  animateToMarker(s.latitude, s.longitude);
+                }
                 setSelection((prev) => (prev?.kind === 'ev' && prev.item.id === s.id ? null : { kind: 'ev', item: s }));
               }}
             />
           ))}
           {isTapCenter && queryCenter && (
-            <Marker
-              coordinate={{ latitude: queryCenter.lat, longitude: queryCenter.lng }}
-              anchor={{ x: 0.5, y: 1.0 }}
-              tracksViewChanges={false}
-            >
-              <Text style={styles.tapPin}>📍</Text>
-            </Marker>
+            <TapPinMarker coordinate={{ latitude: queryCenter.lat, longitude: queryCenter.lng }} />
           )}
         </MapView>
 
-        {activeLayer === 'meter' && (
+        {activeLayer === 'meter' && !searching && (
           <FloatingPill
             freeCount={freeCount}
             label={pillLabel}
@@ -331,6 +395,16 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
         {!metersLoading && metersError && (
           <View style={[styles.loadingBadge, styles.errorBadge]}>
             <Text style={styles.loadingText}>Failed to load meters</Text>
+          </View>
+        )}
+
+        {!selection && emptyHint && (
+          <View style={styles.emptyHintBadge}>
+            <Text style={styles.emptyHintText}>
+              {emptyHint === 'filters'
+                ? 'No results — try adjusting filters'
+                : `No ${LAYER_EMPTY_LABELS[activeLayer]} in this area`}
+            </Text>
           </View>
         )}
 
@@ -423,8 +497,16 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: GREEN,
   },
-  tapPin: {
-    fontSize: 28,
+  coverageBanner: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+  },
+  coverageBannerText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '500',
   },
   locationBanner: {
     flexDirection: 'row',
@@ -446,4 +528,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textDecorationLine: 'underline',
   },
+  emptyHintBadge: {
+    position: 'absolute',
+    bottom: 70,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    zIndex: 10,
+  },
+  emptyHintText: { color: '#fff', fontSize: 12 },
 });

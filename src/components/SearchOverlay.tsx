@@ -1,13 +1,48 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  ScrollView, StyleSheet, Pressable, ActivityIndicator,
+  ScrollView, StyleSheet, Pressable, ActivityIndicator, Platform,
 } from 'react-native';
+
+const IS_IOS = Platform.OS === 'ios';
 import { useTheme } from '../contexts/ThemeContext';
-import { FEATURED, SUGGESTIONS, Suggestion } from '../data/suggestions';
+import { SUGGESTIONS, Suggestion } from '../data/suggestions';
 import { searchPlaces, getPlaceCoords, ResolvedPlace } from '../lib/geocoding';
+import { useRecentSearches } from '../hooks/useRecentSearches';
 import { GREEN } from '../theme';
 import { SEARCH_CONFIG } from '../constants/search';
+
+interface SearchResultRowProps {
+  icon: React.ReactNode;
+  name: string;
+  sub: string;
+  onPress: () => void;
+  divider?: boolean;
+  disabled?: boolean;
+  isDark: boolean;
+  border: string;
+  text: string;
+  text2: string;
+}
+
+function SearchResultRow({ icon, name, sub, onPress, divider = true, disabled, isDark, border, text, text2 }: SearchResultRowProps) {
+  return (
+    <TouchableOpacity
+      style={[styles.row, divider && { borderBottomWidth: 1, borderBottomColor: border }]}
+      onPress={onPress}
+      activeOpacity={0.7}
+      disabled={disabled}
+    >
+      <View style={[styles.rowIcon, { backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7' }]}>
+        {icon}
+      </View>
+      <View style={styles.rowBody}>
+        <Text style={[styles.rowName, { color: text }]}>{name}</Text>
+        <Text style={[styles.rowSub, { color: text2 }]}>{sub}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
 
 interface Props {
   onClose: () => void;
@@ -24,6 +59,8 @@ export function SearchOverlay({ onClose, onSelect }: Props) {
   const { theme } = useTheme();
   const isDark = theme.scheme === 'dark';
   const { surface, border, text, text2, text3 } = theme.colors;
+
+  const { recents, addRecent } = useRecentSearches();
 
   const [query, setQuery] = useState('');
   const [apiResults, setApiResults] = useState<ApiCandidate[]>([]);
@@ -66,9 +103,14 @@ export function SearchOverlay({ onClose, onSelect }: Props) {
     }, SEARCH_CONFIG.DEBOUNCE_MS);
   }
 
-  async function handleSelectSuggestion(s: Suggestion) {
-    onSelect({ name: s.name, sub: s.sub, lat: s.lat, lng: s.lng });
+  function selectAndClose(place: ResolvedPlace) {
+    addRecent(place);
+    onSelect(place);
     onClose();
+  }
+
+  function handleSelectSuggestion(s: Suggestion) {
+    selectAndClose(s);
   }
 
   async function handleSelectApiResult(candidate: ApiCandidate) {
@@ -77,8 +119,7 @@ export function SearchOverlay({ onClose, onSelect }: Props) {
     try {
       const coords = await getPlaceCoords(candidate.placeId);
       if (!coords) return;
-      onSelect({ name: candidate.name, sub: candidate.sub, lat: coords.lat, lng: coords.lng });
-      onClose();
+      selectAndClose({ name: candidate.name, sub: candidate.sub, lat: coords.lat, lng: coords.lng });
     } finally {
       setSelectingId(null);
     }
@@ -87,7 +128,7 @@ export function SearchOverlay({ onClose, onSelect }: Props) {
   const showSuggestions = query.length < SEARCH_CONFIG.MIN_QUERY_LENGTH;
 
   const localResults: Suggestion[] = showSuggestions
-    ? FEATURED
+    ? []
     : SUGGESTIONS.filter((s) => {
         const q = query.toLowerCase();
         return s.name.toLowerCase().includes(q) || s.sub.toLowerCase().includes(q);
@@ -120,48 +161,52 @@ export function SearchOverlay({ onClose, onSelect }: Props) {
         </View>
 
         <Text style={[styles.sectionLabel, { color: text3 }]}>
-          {showSuggestions ? 'Nearby areas' : 'Results'}
+          {showSuggestions ? 'Recent searches' : 'Results'}
         </Text>
 
         <ScrollView keyboardShouldPersistTaps="handled" style={styles.list}>
-          {/* Local results (always shown first) */}
-          {localResults.map((s, i) => (
-            <TouchableOpacity
+          {/* Recent searches (shown when idle) */}
+          {showSuggestions && recents.length === 0 && (
+            <Text style={[styles.empty, { color: text3 }]}>No recent searches</Text>
+          )}
+          {showSuggestions && recents.map((r, i) => (
+            <SearchResultRow
+              key={`recent-${i}`}
+              icon={<Text style={styles.rowIconText}>🕐</Text>}
+              name={r.name}
+              sub={r.sub}
+              onPress={() => selectAndClose(r)}
+              isDark={isDark} border={border} text={text} text2={text2}
+            />
+          ))}
+
+          {/* Local results (shown when typing) */}
+          {!showSuggestions && localResults.map((s, i) => (
+            <SearchResultRow
               key={`local-${i}`}
-              style={[styles.row, { borderBottomWidth: 1, borderBottomColor: border }]}
+              icon={<Text style={styles.rowIconText}>{s.icon}</Text>}
+              name={s.name}
+              sub={s.sub}
               onPress={() => handleSelectSuggestion(s)}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.rowIcon, { backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7' }]}>
-                <Text style={styles.rowIconText}>{s.icon}</Text>
-              </View>
-              <View style={styles.rowBody}>
-                <Text style={[styles.rowName, { color: text }]}>{s.name}</Text>
-                <Text style={[styles.rowSub, { color: text2 }]}>{s.sub}</Text>
-              </View>
-            </TouchableOpacity>
+              isDark={isDark} border={border} text={text} text2={text2}
+            />
           ))}
 
           {/* Places API fallback — only shown when local results < 3 */}
           {!showSuggestions && apiResults.map((c, i) => (
-            <TouchableOpacity
+            <SearchResultRow
               key={c.placeId}
-              style={[styles.row, i < apiResults.length - 1 && { borderBottomWidth: 1, borderBottomColor: border }]}
+              icon={selectingId === c.placeId
+                ? <ActivityIndicator size="small" color={GREEN} />
+                : <Text style={styles.rowIconText}>📍</Text>
+              }
+              name={c.name}
+              sub={c.sub}
               onPress={() => handleSelectApiResult(c)}
-              activeOpacity={0.7}
+              divider={i < apiResults.length - 1}
               disabled={selectingId === c.placeId}
-            >
-              <View style={[styles.rowIcon, { backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7' }]}>
-                {selectingId === c.placeId
-                  ? <ActivityIndicator size="small" color={GREEN} />
-                  : <Text style={styles.rowIconText}>📍</Text>
-                }
-              </View>
-              <View style={styles.rowBody}>
-                <Text style={[styles.rowName, { color: text }]}>{c.name}</Text>
-                <Text style={[styles.rowSub, { color: text2 }]}>{c.sub}</Text>
-              </View>
-            </TouchableOpacity>
+              isDark={isDark} border={border} text={text} text2={text2}
+            />
           ))}
 
           {!showSuggestions && localResults.length === 0 && apiResults.length === 0 && !searching && (
@@ -181,9 +226,9 @@ const styles = StyleSheet.create({
   panel: {
     borderBottomWidth: 1,
     borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 14,
+    paddingHorizontal: IS_IOS ? 16 : 12,
+    paddingTop: IS_IOS ? 14 : 10,
+    paddingBottom: IS_IOS ? 18 : 14,
     shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowRadius: 12,
@@ -194,7 +239,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginBottom: 8,
+    marginBottom: IS_IOS ? 12 : 8,
   },
   searchIcon: { fontSize: 16 },
   input: {
@@ -216,12 +261,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     paddingBottom: 6,
   },
-  list: { maxHeight: 300 },
+  list: { maxHeight: IS_IOS ? 320 : 300 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingVertical: 9,
+    paddingVertical: IS_IOS ? 12 : 9,
     paddingHorizontal: 4,
   },
   rowIcon: {
