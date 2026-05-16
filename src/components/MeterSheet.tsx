@@ -14,7 +14,7 @@ import {
   getRushHours,
 } from '../utils/parkingUtils';
 import { SpotReport } from '../hooks/useSpotReports';
-import { BottomSheet, InfoGrid } from './BottomSheet';
+import { BottomSheet, InfoGrid, RushHourBanner } from './BottomSheet';
 import { getMeterTier, TIER_COLORS } from './MeterMarker';
 
 function timeAgo(iso: string): string {
@@ -77,23 +77,7 @@ export function MeterSheet({ meter, onDismiss, report, onReport }: Props) {
         </Badge>
       </View>
 
-      {prohibited && rushHours.length > 0 && (
-        <View style={styles.rushBanner}>
-          <Text style={styles.rushTitle}>No parking — Rush hour (Mon–Fri)</Text>
-          {rushHours.map((w) => (
-            <Text key={w.label} style={styles.rushTime}>{w.label}</Text>
-          ))}
-        </View>
-      )}
-
-      {!prohibited && rushHours.length > 0 && (
-        <View style={styles.rushWarning}>
-          <Text style={styles.rushWarningTitle}>Rush hour restriction (Mon–Fri)</Text>
-          {rushHours.map((w) => (
-            <Text key={w.label} style={styles.rushWarningTime}>{w.label} — No parking</Text>
-          ))}
-        </View>
-      )}
+      <RushHourBanner windows={rushHours} active={prohibited} />
 
       <View style={[styles.reportSection, { borderColor: border }]}>
         {report ? (
@@ -129,26 +113,6 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   dot:    { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
   street: { flex: 1, fontSize: 15, fontWeight: '600' },
-  rushBanner: {
-    backgroundColor: 'rgba(239,68,68,0.12)',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.3)',
-    padding: 10,
-    marginBottom: 12,
-  },
-  rushTitle:        { color: '#ef4444', fontSize: 12, fontWeight: '700', marginBottom: 2 },
-  rushTime:         { color: '#ef4444', fontSize: 12, fontWeight: '500' },
-  rushWarning: {
-    backgroundColor: 'rgba(249,115,22,0.1)',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(249,115,22,0.25)',
-    padding: 10,
-    marginBottom: 12,
-  },
-  rushWarningTitle: { color: '#f97316', fontSize: 11, fontWeight: '700', marginBottom: 2 },
-  rushWarningTime:  { color: '#f97316', fontSize: 11 },
   reportSection: {
     flexDirection: 'row',
     alignItems: 'center',

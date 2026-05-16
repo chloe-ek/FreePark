@@ -39,6 +39,13 @@ import {
   PAYMENT_FILTER_OPTIONS,
 } from '../constants/filters';
 
+type Selection =
+  | { kind: 'meter';      item: NearbyMeterResult }
+  | { kind: 'disability'; item: DisabilityParkingResult }
+  | { kind: 'motorcycle'; item: MotorcycleParkingResult }
+  | { kind: 'ev';         item: EvChargingResult }
+  | null;
+
 interface Props {
   onNavigate: (tab: TabName) => void;
   pendingFocusMeter?: NearbyMeterResult | null;
@@ -61,20 +68,12 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
   const queryLng = queryCenter?.lng ?? longitude;
 
   const [activeLayer, setActiveLayer] = useState<LayerKind>('meter');
-
-  const [selected, setSelected]         = useState<NearbyMeterResult | null>(null);
-  const [selectedSpot, setSelectedSpot] = useState<DisabilityParkingResult | null>(null);
-  const [selectedMoto, setSelectedMoto] = useState<MotorcycleParkingResult | null>(null);
-  const [selectedEv, setSelectedEv]     = useState<EvChargingResult | null>(null);
-  const [searching, setSearching]       = useState(false);
-
-  function clearAllSelections() {
-    setSelected(null); setSelectedSpot(null); setSelectedMoto(null); setSelectedEv(null);
-  }
+  const [selection, setSelection] = useState<Selection>(null);
+  const [searching, setSearching] = useState(false);
 
   function handleLayerChange(layer: LayerKind) {
     setActiveLayer(layer);
-    clearAllSelections();
+    setSelection(null);
   }
 
   const { meters, loading: metersLoading, error: metersError } = useNearbyMeters(
@@ -109,7 +108,7 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
       longitude: pendingFocusMeter.longitude,
       ...MAP_DELTAS.FOCUS,
     });
-    setSelected(pendingFocusMeter);
+    setSelection({ kind: 'meter', item: pendingFocusMeter });
     setQueryCenter({ name: '', sub: '', lat: pendingFocusMeter.latitude, lng: pendingFocusMeter.longitude });
     onClearFocus?.();
   }, [pendingFocusMeter]);
@@ -129,7 +128,7 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
 
   function handleSearchSelect(place: ResolvedPlace) {
     setQueryCenter(place);
-    setSelected(null);
+    setSelection(null);
     mapRef.current?.animateToRegion({ latitude: place.lat, longitude: place.lng, ...MAP_DELTAS.DEFAULT });
   }
 
@@ -145,8 +144,8 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
       return;
     }
     closeDropdown();
-    if (selected || selectedSpot || selectedMoto || selectedEv) {
-      clearAllSelections();
+    if (selection) {
+      setSelection(null);
       return;
     }
     setQueryCenter({ name: '', sub: '', lat: e.nativeEvent.coordinate.latitude, lng: e.nativeEvent.coordinate.longitude });
@@ -155,7 +154,7 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
   function handlePinPress(meter: NearbyMeterResult) {
     if (searching) return;
     markerPressedRef.current = true;
-    setSelected((prev) => (prev?.id === meter.id ? null : meter));
+    setSelection((prev) => (prev?.kind === 'meter' && prev.item.id === meter.id ? null : { kind: 'meter', item: meter }));
   }
 
   if (locLoading) {
@@ -274,7 +273,7 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
               spot={spot}
               onPress={(s) => {
                 markerPressedRef.current = true;
-                setSelectedSpot((prev) => (prev?.id === s.id ? null : s));
+                setSelection((prev) => (prev?.kind === 'disability' && prev.item.id === s.id ? null : { kind: 'disability', item: s }));
               }}
             />
           ))}
@@ -284,7 +283,7 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
               spot={spot}
               onPress={(s) => {
                 markerPressedRef.current = true;
-                setSelectedMoto((prev) => (prev?.id === s.id ? null : s));
+                setSelection((prev) => (prev?.kind === 'motorcycle' && prev.item.id === s.id ? null : { kind: 'motorcycle', item: s }));
               }}
             />
           ))}
@@ -294,7 +293,7 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
               station={station}
               onPress={(s) => {
                 markerPressedRef.current = true;
-                setSelectedEv((prev) => (prev?.id === s.id ? null : s));
+                setSelection((prev) => (prev?.kind === 'ev' && prev.item.id === s.id ? null : { kind: 'ev', item: s }));
               }}
             />
           ))}
@@ -319,7 +318,7 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
 
         <LocateButton
           onPress={recenter}
-          bottom={selected ? LOCATE_BUTTON_BOTTOM.ACTIVE : LOCATE_BUTTON_BOTTOM.DEFAULT}
+          bottom={selection ? LOCATE_BUTTON_BOTTOM.ACTIVE : LOCATE_BUTTON_BOTTOM.DEFAULT}
         />
 
         {metersLoading && (
@@ -335,7 +334,7 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
           </View>
         )}
 
-        {!selected && !searching && (
+        {!selection && !searching && (
           <SearchBar onOpen={() => setSearching(true)} />
         )}
 
@@ -346,22 +345,22 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
           />
         )}
 
-        {selected && (
+        {selection?.kind === 'meter' && (
           <MeterSheet
-            meter={selected}
-            onDismiss={() => setSelected(null)}
-            report={getReport(selected.meter_id)}
-            onReport={(type) => submitReport(selected.meter_id, type)}
+            meter={selection.item}
+            onDismiss={() => setSelection(null)}
+            report={getReport(selection.item.meter_id)}
+            onReport={(type) => submitReport(selection.item.meter_id, type)}
           />
         )}
-        {selectedSpot && !selected && (
-          <DisabilitySheet spot={selectedSpot} onDismiss={() => setSelectedSpot(null)} />
+        {selection?.kind === 'disability' && (
+          <DisabilitySheet spot={selection.item} onDismiss={() => setSelection(null)} />
         )}
-        {selectedMoto && !selected && !selectedSpot && (
-          <MotorcycleSheet spot={selectedMoto} onDismiss={() => setSelectedMoto(null)} />
+        {selection?.kind === 'motorcycle' && (
+          <MotorcycleSheet spot={selection.item} onDismiss={() => setSelection(null)} />
         )}
-        {selectedEv && !selected && !selectedSpot && !selectedMoto && (
-          <EvSheet station={selectedEv} onDismiss={() => setSelectedEv(null)} />
+        {selection?.kind === 'ev' && (
+          <EvSheet station={selection.item} onDismiss={() => setSelection(null)} />
         )}
       </View>
 

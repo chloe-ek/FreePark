@@ -3,6 +3,7 @@ import {
   View, Text, TouchableOpacity, ScrollView,
   StyleSheet, Animated,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { TabBar, TabName } from '../components/TabBar';
@@ -16,11 +17,12 @@ interface Props {
 export function SettingsScreen({ onNavigate }: Props) {
   const { theme, toggleTheme } = useTheme();
   const { settings, setRadiusMeters } = useSettings();
+  const insets = useSafeAreaInsets();
   const { bg2, surface, border, text, text2, text3 } = theme.colors;
 
   return (
     <View style={[styles.container, { backgroundColor: bg2 }]}>
-      <View style={[styles.header, { backgroundColor: bg2, borderBottomColor: border }]}>
+      <View style={[styles.header, { backgroundColor: bg2, borderBottomColor: border, paddingTop: insets.top + 12 }]}>
         <Text style={[styles.title, { color: text }]}>Settings</Text>
       </View>
 
@@ -158,7 +160,7 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
 
 const styles = StyleSheet.create({
   container:     { flex: 1 },
-  header:        { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  header:        { paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth },
   title:         { fontSize: 17, fontWeight: '600' },
   scroll:        { flex: 1 },
   scrollContent: { paddingBottom: 16 },

@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { GREEN } from '../theme';
 
@@ -26,9 +27,10 @@ interface Props {
 export function TabBar({ active, onNavigate }: Props) {
   const { theme } = useTheme();
   const { surface, border, text3 } = theme.colors;
+  const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.bar, { backgroundColor: surface, borderTopColor: border }]}>
+    <View style={[styles.bar, { backgroundColor: surface, borderTopColor: border, paddingBottom: Math.max(insets.bottom, 8) }]}>
       {TABS.map((tab) => {
         const isActive = active === tab.id;
         const color = isActive ? GREEN : text3;
@@ -55,7 +57,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderTopWidth: 1,
     paddingTop: 8,
-    paddingBottom: 20,
     flexShrink: 0,
   },
   item: {

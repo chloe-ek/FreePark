@@ -1,14 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Marker, Callout } from 'react-native-maps';
+import { Marker } from 'react-native-maps';
 import type { NearbyMeterResult } from '../types/database';
 import {
   isMeterFreeNow,
   isMeterProhibited,
-  getCurrentRateLabel,
   getCurrentRate,
-  minutesUntilFree,
-  formatMinutes,
 } from '../utils/parkingUtils';
 import { GREEN } from '../theme';
 
@@ -39,39 +36,29 @@ export function getMeterTier(meter: NearbyMeterResult): TierKey {
 }
 
 export function MeterMarker({ meter, onPress, hasReport }: Props) {
+  const [captured, setCaptured] = useState(false);
   const tier = getMeterTier(meter);
   const color = TIER_COLORS[tier];
-  const free = tier === 'free';
-  const minsUntilFree = minutesUntilFree(meter);
+
+  // Keep tracking until first layout capture, or whenever report icon is shown
+  // (report changes visual content, so bitmap must be re-captured on Android)
+  const tracksViewChanges = !captured || !!hasReport;
 
   return (
     <Marker
       coordinate={{ latitude: meter.latitude, longitude: meter.longitude }}
-      tracksViewChanges={false}
+      tracksViewChanges={tracksViewChanges}
       onPress={() => onPress?.(meter)}
       anchor={{ x: 0.5, y: 0.5 }}
     >
-      <View style={styles.wrapper}>
+      <View
+        style={styles.wrapper}
+        collapsable={false}
+        onLayout={() => setCaptured(true)}
+      >
         <View style={[styles.dot, { backgroundColor: color }]} />
         {hasReport && <Text style={styles.reportIcon}>⚠️</Text>}
       </View>
-
-      <Callout tooltip>
-        <View style={styles.callout}>
-          <Text style={styles.calloutId}>Meter {meter.meter_id}</Text>
-          <Text style={[styles.calloutRate, { color }]}>
-            {getCurrentRateLabel(meter)}
-          </Text>
-          {!free && minsUntilFree != null && (
-            <Text style={styles.calloutFreeIn}>
-              Free in {formatMinutes(minsUntilFree)}
-            </Text>
-          )}
-          <Text style={styles.calloutDist}>
-            {Math.round(meter.distance_meters)} m away
-          </Text>
-        </View>
-      </Callout>
     </Marker>
   );
 }
@@ -90,24 +77,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.5)',
   },
-  callout: {
-    backgroundColor: '#1c1c1e',
-    borderRadius: 10,
-    padding: 12,
-    minWidth: 150,
-    shadowColor: '#000',
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
   reportIcon: {
     position: 'absolute',
     top: 0,
     right: 0,
     fontSize: 11,
   },
-  calloutId:     { fontWeight: '700', fontSize: 13, color: '#f0f0f0', marginBottom: 4 },
-  calloutRate:   { fontSize: 13, marginBottom: 2, fontWeight: '500' },
-  calloutFreeIn: { fontSize: 11, color: '#facc15', marginBottom: 2 },
-  calloutDist:   { fontSize: 11, color: '#666' },
 });
