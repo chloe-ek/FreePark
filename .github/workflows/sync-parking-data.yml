@@ -1,0 +1,31 @@
+name: Sync Vancouver Parking Data
+
+on:
+  schedule:
+    - cron: '0 15 * * 1'  # Every Monday 15:00 UTC (Monday 8 AM Vancouver time, after Vancouver data refresh)
+  workflow_dispatch:      # Manual trigger from GitHub UI
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Seed parking meters
+        run: npx tsx scripts/seed-meters.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Seed motorcycle parking
+        run: npx tsx scripts/seed-motorcycle-parking.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
