@@ -13,3 +13,10 @@ export const LAYER_LABELS: Record<LayerKind, string> = {
   motorcycle: '🏍',
   ev:         '⚡',
 } as const;
+
+export const LAYER_EMPTY_LABELS: Record<LayerKind, string> = {
+  meter:      'parking meters',
+  disability: 'accessible spots',
+  motorcycle: 'motorcycle spots',
+  ev:         'EV chargers',
+} as const;

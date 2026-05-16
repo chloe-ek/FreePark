@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, PanResponder } from 'react-native';
+import type { RushHourWindow } from '../utils/parkingUtils';
 import { useTheme } from '../contexts/ThemeContext';
 import { GREEN } from '../theme';
 
@@ -80,6 +81,29 @@ export function InfoGrid({ rows }: InfoGridProps) {
   );
 }
 
+// ─── RushHourBanner ──────────────────────────────────────────────────────────
+
+interface RushHourBannerProps {
+  windows: RushHourWindow[];
+  active: boolean; // true = currently in rush hour, false = upcoming warning
+}
+
+export function RushHourBanner({ windows, active }: RushHourBannerProps) {
+  if (windows.length === 0) return null;
+  return (
+    <View style={active ? styles.rushBannerActive : styles.rushBannerWarn}>
+      <Text style={active ? styles.rushTitleActive : styles.rushTitleWarn}>
+        {active ? 'No parking — Rush hour (Mon–Fri)' : 'Rush hour restriction (Mon–Fri)'}
+      </Text>
+      {windows.map((w) => (
+        <Text key={w.label} style={active ? styles.rushTimeActive : styles.rushTimeWarn}>
+          {active ? w.label : `${w.label} — No parking`}
+        </Text>
+      ))}
+    </View>
+  );
+}
+
 // ─── Shared styles ────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
@@ -139,4 +163,24 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
   },
+  rushBannerActive: {
+    backgroundColor: 'rgba(239,68,68,0.12)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.3)',
+    padding: 10,
+    marginBottom: 12,
+  },
+  rushTitleActive: { color: '#ef4444', fontSize: 12, fontWeight: '700', marginBottom: 2 },
+  rushTimeActive:  { color: '#ef4444', fontSize: 12, fontWeight: '500' },
+  rushBannerWarn: {
+    backgroundColor: 'rgba(249,115,22,0.1)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(249,115,22,0.25)',
+    padding: 10,
+    marginBottom: 12,
+  },
+  rushTitleWarn: { color: '#f97316', fontSize: 11, fontWeight: '700', marginBottom: 2 },
+  rushTimeWarn:  { color: '#f97316', fontSize: 11 },
 });

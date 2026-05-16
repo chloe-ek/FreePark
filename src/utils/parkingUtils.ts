@@ -149,23 +149,7 @@ export function getCurrentRate(meter: Meter): number | null {
 
 export function getCurrentTimeLimit(meter: Meter): number | null {
   const now = new Date();
-  const mins = now.getHours() * 60 + now.getMinutes();
-  const dow = now.getDay();
-  const isSat = dow === 6;
-  const isSun = dow === 0;
-  const { DAY_START, EVENING_START, EVENING_END } = BUSINESS_HOURS_MINS;
-
-  if (mins >= DAY_START && mins < EVENING_START) {
-    return isSat ? meter.time_limit_sa_9am_6pm
-      : isSun ? meter.time_limit_su_9am_6pm
-      : meter.time_limit_9am_6pm;
-  }
-  if (mins >= EVENING_START && mins < EVENING_END) {
-    return isSat ? meter.time_limit_sa_6pm_10pm
-      : isSun ? meter.time_limit_su_6pm_10pm
-      : meter.time_limit_6pm_10pm;
-  }
-  return null;
+  return getRateAndLimit(meter, now.getHours() * 60 + now.getMinutes(), now.getDay()).limit;
 }
 
 export function minutesUntilFree(meter: Meter): number | null {

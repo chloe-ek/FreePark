@@ -34,7 +34,6 @@ interface Props {
   onSelectMeter: (meter: NearbyMeterResult) => void;
 }
 
-type SpotKind = LayerKind;
 type SortKey = 'distance' | 'rate';
 
 type AnySpot =
@@ -67,7 +66,7 @@ export function NearbyListScreen({ onNavigate, onSelectMeter }: Props) {
   const { bg, surface, border, text, text2, text3 } = theme.colors;
 
   const [sortBy, setSortBy] = useState<SortKey>('rate');
-  const [activeKind, setActiveKind] = useState<SpotKind>('meter');
+  const [activeKind, setActiveKind] = useState<LayerKind>('meter');
   const [paymentFilter, setPaymentFilter] = useState<'any' | 'card' | 'cash'>('any');
 
   const { meters, loading: loadingMeters, error: metersError }          = useNearbyMeters(latitude, longitude, settings.radiusMeters, activeKind === 'meter');
@@ -209,7 +208,7 @@ export function NearbyListScreen({ onNavigate, onSelectMeter }: Props) {
 
       {/* Row 1 — kind + sort */}
       <View style={[styles.kindBar, { backgroundColor: surface, borderBottomColor: border }]}>
-        {(['meter', 'disability', 'motorcycle', 'ev'] as SpotKind[]).map((k) => {
+        {(['meter', 'disability', 'motorcycle', 'ev'] as LayerKind[]).map((k) => {
           const active = activeKind === k;
           const color = LAYER_COLORS[k];
           return (
