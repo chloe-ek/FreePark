@@ -4,6 +4,8 @@
 import {
   getMotoCurrentRate,
   getMotoCurrentTimeLimit,
+  isMotoRushHour,
+  isBCStatutoryHoliday,
 } from '../parkingUtils';
 import { setTime, makeMoto } from './helpers';
 
@@ -101,5 +103,82 @@ describe('getMotoCurrentTimeLimit', () => {
   test('null at exactly 10 PM', () => {
     setTime(2, 22, 0);
     expect(getMotoCurrentTimeLimit(makeMoto({ time_limit_6pm_10pm: 60 }))).toBeNull();
+  });
+});
+
+// ─── isMotoRushHour ───────────────────────────────────────────────────────────
+
+describe('isMotoRushHour', () => {
+  test('returns true during AM rush hour on weekday', () => {
+    setTime(2, 8); // Tuesday 8 AM
+    expect(isMotoRushHour(makeMoto({ am_rush_start: '07:00', am_rush_end: '10:00' }))).toBe(true);
+  });
+
+  test('returns true during PM rush hour on weekday', () => {
+    setTime(2, 16); // Tuesday 4 PM
+    expect(isMotoRushHour(makeMoto({ pm_rush_start: '15:00', pm_rush_end: '19:00' }))).toBe(true);
+  });
+
+  test('returns false before AM rush hour', () => {
+    setTime(2, 6, 59);
+    expect(isMotoRushHour(makeMoto({ am_rush_start: '07:00', am_rush_end: '10:00' }))).toBe(false);
+  });
+
+  test('returns false at end of rush hour (exclusive)', () => {
+    setTime(2, 10, 0);
+    expect(isMotoRushHour(makeMoto({ am_rush_start: '07:00', am_rush_end: '10:00' }))).toBe(false);
+  });
+
+  test('returns false on Saturday', () => {
+    setTime(6, 8);
+    expect(isMotoRushHour(makeMoto({ am_rush_start: '07:00', am_rush_end: '10:00' }))).toBe(false);
+  });
+
+  test('returns false on Sunday', () => {
+    setTime(0, 8);
+    expect(isMotoRushHour(makeMoto({ am_rush_start: '07:00', am_rush_end: '10:00' }))).toBe(false);
+  });
+
+  test('returns false when no rush hours set', () => {
+    setTime(2, 8);
+    expect(isMotoRushHour(makeMoto({}))).toBe(false);
+  });
+});
+
+// ─── isBCStatutoryHoliday ─────────────────────────────────────────────────────
+
+describe('isBCStatutoryHoliday', () => {
+  test('New Year\'s Day', () => {
+    expect(isBCStatutoryHoliday(new Date(2026, 0, 1))).toBe(true);
+  });
+
+  test('Canada Day', () => {
+    expect(isBCStatutoryHoliday(new Date(2026, 6, 1))).toBe(true);
+  });
+
+  test('Christmas Day', () => {
+    expect(isBCStatutoryHoliday(new Date(2026, 11, 25))).toBe(true);
+  });
+
+  test('Family Day 2026 (3rd Monday of February)', () => {
+    expect(isBCStatutoryHoliday(new Date(2026, 1, 16))).toBe(true);
+  });
+
+  test('Victoria Day 2026 (last Monday on or before May 24)', () => {
+    expect(isBCStatutoryHoliday(new Date(2026, 4, 18))).toBe(true);
+  });
+
+  test('Labour Day 2026 (1st Monday of September)', () => {
+    expect(isBCStatutoryHoliday(new Date(2026, 8, 7))).toBe(true);
+  });
+
+  test('regular weekday is not a holiday', () => {
+    expect(isBCStatutoryHoliday(new Date(2026, 4, 15))).toBe(false); // Friday May 15
+  });
+
+  test('rush hour is suppressed on a statutory holiday', () => {
+    // Canada Day 2026 is a Wednesday
+    jest.setSystemTime(new Date(2026, 6, 1, 8, 0, 0));
+    expect(isMotoRushHour(makeMoto({ am_rush_start: '07:00', am_rush_end: '10:00' }))).toBe(false);
   });
 });
