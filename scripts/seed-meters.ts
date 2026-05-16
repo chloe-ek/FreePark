@@ -18,6 +18,7 @@ interface VancouverMeter {
   geo_point_2d: { lat: number; lon: number };
   service_status: string | null;
   credit_card: string | null;
+  vehicle_type: string | null;
 
   rate_9am_6pm: string | null;
   rate_6pm_10pm: string | null;
@@ -84,10 +85,32 @@ function parseProhibitionTime(raw: string | null): { start: string | null; end: 
 
 function parseServiceStatus(raw: string | null): "active" | "inactive" | "removed" {
   switch (raw?.trim().toLowerCase()) {
-    case "inactive": return "inactive";
-    case "removed":  return "removed";
-    default:         return "active";
+    case "out of service": return "inactive";
+    case "removed":        return "removed";
+    default:               return "active";
   }
+}
+
+// "Mon-Fri" → "Mon Tue Wed Thu Fri", "7 Days a Week" → "Mon Tue Wed Thu Fri Sat Sun"
+function parseDays(raw: string | null): string | null {
+  if (!raw) return null;
+  const s = raw.trim().toLowerCase();
+  if (s === '7 days a week') return 'Mon Tue Wed Thu Fri Sat Sun';
+  const ALL = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const IDX: Record<string, number> = { mon:0, tue:1, wed:2, thu:3, fri:4, sat:5, sun:6 };
+  const FULL: Record<string, string> = {
+    mondays:'Mon', tuesdays:'Tue', wednesdays:'Wed', thursdays:'Thu',
+    fridays:'Fri', saturdays:'Sat', sundays:'Sun',
+    monday:'Mon', tuesday:'Tue', wednesday:'Wed', thursday:'Thu',
+    friday:'Fri', saturday:'Sat', sunday:'Sun',
+  };
+  if (FULL[s]) return FULL[s];
+  const rangeMatch = s.match(/^([a-z]+)-([a-z]+)$/);
+  if (rangeMatch) {
+    const from = IDX[rangeMatch[1]], to = IDX[rangeMatch[2]];
+    if (from !== undefined && to !== undefined) return ALL.slice(from, to + 1).join(' ');
+  }
+  return raw.trim();
 }
 
 async function fetchAllMeters(): Promise<VancouverMeter[]> {
@@ -115,7 +138,9 @@ async function seed() {
   const meters = await fetchAllMeters();
   console.log(`Fetched ${meters.length} meters.`);
 
-  const rows = meters.map((m) => {
+  const rows = meters
+    .filter((m) => !m.vehicle_type || m.vehicle_type.trim() === 'Any Vehicle')
+    .map((m) => {
     const rate9to6  = parseRate(m.rate_9am_6pm);
     const rate6to10 = parseRate(m.rate_6pm_10pm);
     const proh1     = parseProhibitionTime(m.prohibition_1_time);
@@ -147,10 +172,10 @@ async function seed() {
 
       prohibition_start:      proh1.start,
       prohibition_end:        proh1.end,
-      prohibition_days:       m.prohibition_1_days ?? null,
+      prohibition_days:       parseDays(m.prohibition_1_days),
       prohibition2_start:     proh2.start,
       prohibition2_end:       proh2.end,
-      prohibition2_days:      m.prohibition_2_days ?? null,
+      prohibition2_days:      parseDays(m.prohibition_2_days),
 
       am_rush_start:          amRush.start,
       am_rush_end:            amRush.end,

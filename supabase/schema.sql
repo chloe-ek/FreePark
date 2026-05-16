@@ -191,6 +191,36 @@ create policy "public read"
   for select
   using (true);
 
+-- ============================================================
+-- motorcycle_parking
+-- ============================================================
+create table if not exists public.motorcycle_parking (
+  id                      integer generated always as identity primary key,
+  spot_type               text,
+  location                text,
+  intersectn              text,
+  rate_9am_6pm            double precision,
+  rate_6pm_10pm           double precision,
+  rate_sa_9am_6pm         double precision,
+  rate_sa_6pm_10pm        double precision,
+  rate_su_9am_6pm         double precision,
+  rate_su_6pm_10pm        double precision,
+  time_limit_9am_6pm      integer,
+  time_limit_6pm_10pm     integer,
+  time_limit_sa_9am_6pm   integer,
+  time_limit_sa_6pm_10pm  integer,
+  time_limit_su_9am_6pm   integer,
+  time_limit_su_6pm_10pm  integer,
+  credit_card             boolean not null default false,
+  am_rush_start           text,
+  am_rush_end             text,
+  pm_rush_start           text,
+  pm_rush_end             text,
+  geo_local_area          text,
+  latitude                double precision not null,
+  longitude               double precision not null
+);
+
 alter table public.motorcycle_parking enable row level security;
 
 create policy "public read"
