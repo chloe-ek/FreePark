@@ -29,15 +29,17 @@ import type {
   NearbyMeterResult,
 } from '../types/database';
 import type { Selection } from '../types/map';
+
+type PendingFocus = Exclude<Selection, null>;
 import { getFreeAfterTime, isMeterFreeNow } from '../utils/parkingUtils';
 
 interface Props {
   onNavigate: (tab: TabName) => void;
-  pendingFocusMeter?: NearbyMeterResult | null;
+  pendingFocus?: PendingFocus | null;
   onClearFocus?: () => void;
 }
 
-export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props) {
+export function MapScreen({ onNavigate, pendingFocus, onClearFocus }: Props) {
   const mapRef       = useRef<MapView>(null);
   const mapReadyRef  = useRef(false);
   const pendingFocusRef   = useRef<{ lat: number; lng: number } | null>(null);
@@ -66,12 +68,13 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
   }, [activeLayer, locationKey, fetchLayerIfNeeded]);
 
   useEffect(() => {
-    if (!pendingFocusMeter) return;
-    animateToMarker(pendingFocusMeter.latitude, pendingFocusMeter.longitude);
-    setSelection({ kind: 'meter', item: pendingFocusMeter });
-    setQueryCenter({ name: '', sub: '', lat: pendingFocusMeter.latitude, lng: pendingFocusMeter.longitude });
+    if (!pendingFocus) return;
+    setActiveLayer(pendingFocus.kind);
+    animateToMarker(pendingFocus.item.latitude, pendingFocus.item.longitude);
+    setSelection(pendingFocus);
+    setQueryCenter({ name: '', sub: '', lat: pendingFocus.item.latitude, lng: pendingFocus.item.longitude });
     onClearFocus?.();
-  }, [pendingFocusMeter]);
+  }, [pendingFocus]);
 
   const freeCount    = useMemo(() => visibleMeters.filter(isMeterFreeNow).length, [visibleMeters]);
   const freeAfterTime = useMemo(() => getFreeAfterTime(meters), [meters]);

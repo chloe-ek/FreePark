@@ -5,14 +5,14 @@ import { MapScreen } from '../screens/MapScreen';
 import { NearbyListScreen } from '../screens/NearbyListScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { TabName } from '../components/ui/TabBar';
-import { NearbyMeterResult } from '../types/database';
+import type { Selection } from '../types/map';
 
 type Phase = 'entry' | 'main';
 
 export function AppNavigator() {
   const [phase, setPhase] = useState<Phase>('entry');
   const [activeTab, setActiveTab] = useState<TabName>('map');
-  const [pendingFocusMeter, setPendingFocusMeter] = useState<NearbyMeterResult | null>(null);
+  const [pendingFocus, setPendingFocus] = useState<Selection>(null);
 
   if (phase === 'entry') {
     return <EntryScreen onReady={() => setPhase('main')} />;
@@ -25,15 +25,15 @@ export function AppNavigator() {
       <View style={{ flex: 1, display: activeTab === 'map' ? 'flex' : 'none' }}>
         <MapScreen
           onNavigate={setActiveTab}
-          pendingFocusMeter={pendingFocusMeter}
-          onClearFocus={() => setPendingFocusMeter(null)}
+          pendingFocus={pendingFocus}
+          onClearFocus={() => setPendingFocus(null)}
         />
       </View>
       <View style={{ flex: 1, display: activeTab === 'nearby' ? 'flex' : 'none' }}>
         <NearbyListScreen
           onNavigate={setActiveTab}
-          onSelectMeter={(meter) => {
-            setPendingFocusMeter(meter);
+          onSelectSpot={(selection) => {
+            setPendingFocus(selection);
             setActiveTab('map');
           }}
         />

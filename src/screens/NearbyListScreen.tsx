@@ -24,10 +24,11 @@ import {
   getMotoCurrentTimeLimit,
 } from '../utils/parkingUtils';
 import { GREEN } from '../theme';
+import type { Selection } from '../types/map';
 
 interface Props {
   onNavigate: (tab: TabName) => void;
-  onSelectMeter: (meter: NearbyMeterResult) => void;
+  onSelectSpot: (selection: Exclude<Selection, null>) => void;
 }
 
 type SortKey = 'distance' | 'rate';
@@ -54,7 +55,7 @@ function getSortRate(spot: AnySpot): number {
   }
 }
 
-export function NearbyListScreen({ onNavigate, onSelectMeter }: Props) {
+export function NearbyListScreen({ onNavigate, onSelectSpot }: Props) {
   const { theme } = useTheme();
   const { settings } = useSettings();
   const insets = useSafeAreaInsets();
@@ -90,10 +91,8 @@ export function NearbyListScreen({ onNavigate, onSelectMeter }: Props) {
   }, [meters, accSpots, motoSpots, evStations, sortBy, activeKind, paymentFilter]);
 
   function handleSelect(spot: AnySpot) {
-    if (spot.kind === 'meter') {
-      onSelectMeter(spot.data);
-      onNavigate('map');
-    }
+    onSelectSpot({ kind: spot.kind, item: spot.data } as Exclude<Selection, null>);
+    onNavigate('map');
   }
 
   function renderItem({ item }: { item: AnySpot }) {
@@ -156,13 +155,11 @@ export function NearbyListScreen({ onNavigate, onSelectMeter }: Props) {
       }
     }
 
-    const isSelectable = item.kind === 'meter';
-
     return (
       <TouchableOpacity
         style={[styles.row, { borderBottomColor: border }]}
         onPress={() => handleSelect(item)}
-        activeOpacity={isSelectable ? 0.7 : 1}
+        activeOpacity={0.7}
       >
         <View style={[styles.kindBadge, { backgroundColor: kindColor + '22', borderColor: kindColor + '55' }]}>
           <Text style={[styles.kindLabel, { color: kindColor }]}>{LAYER_LABELS[item.kind]}</Text>
@@ -186,7 +183,7 @@ export function NearbyListScreen({ onNavigate, onSelectMeter }: Props) {
             )}
           </View>
         </View>
-        {isSelectable && <Text style={[styles.chevron, { color: text3 }]}>›</Text>}
+        <Text style={[styles.chevron, { color: text3 }]}>›</Text>
       </TouchableOpacity>
     );
   }
