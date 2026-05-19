@@ -8,7 +8,7 @@ module.exports = {
     version: '1.0.0',
     orientation: 'portrait',
     icon: './assets/icon.png',
-    userInterfaceStyle: 'light',
+    userInterfaceStyle: 'automatic',
     splash: {
       image: './assets/splash-icon.png',
       resizeMode: 'contain',
@@ -16,7 +16,7 @@ module.exports = {
     },
     ios: {
       supportsTablet: true,
-      bundleIdentifier: 'com.chloe-ek.FreePark',
+      bundleIdentifier: 'com.chloekwon.FreePark',
       infoPlist: {
         NSLocationWhenInUseUsageDescription: LOCATION_PERMISSION_TEXT,
       },
@@ -34,7 +34,7 @@ module.exports = {
           apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
         },
       },
-      package: 'com.chloeek.FreeParkexpo',
+      package: 'com.chloekwon.FreePark',
     },
     web: {
       favicon: './assets/favicon.png',
@@ -47,5 +47,10 @@ module.exports = {
         },
       ],
     ],
+    extra: {
+      eas: {
+        projectId: 'fb30c02d-afd3-4a1b-9c60-aa50a2266139',
+      },
+    },
   },
 };
