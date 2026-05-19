@@ -47,13 +47,17 @@ export function useSpotReports(meterIds: string[]) {
 
   const fetchActive = useCallback(async () => {
     if (meterIds.length === 0) return;
-    const { data } = await supabase
-      .from('spot_reports')
-      .select('*')
-      .in('meter_id', meterIds)
-      .gt('expires_at', new Date().toISOString())
-      .order('reported_at', { ascending: false });
-    setReports((data as SpotReport[]) ?? []);
+    try {
+      const { data } = await supabase
+        .from('spot_reports')
+        .select('*')
+        .in('meter_id', meterIds)
+        .gt('expires_at', new Date().toISOString())
+        .order('reported_at', { ascending: false });
+      setReports((data as SpotReport[]) ?? []);
+    } catch {
+      // Non-critical — spot report badges are best-effort
+    }
   }, [meterIds.join(',')]);
 
   useEffect(() => {
