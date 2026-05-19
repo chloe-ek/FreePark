@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import { SettingsProvider } from './src/contexts/SettingsContext';
+import { ParkingDataProvider } from './src/contexts/ParkingDataContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
 
 function Root() {
@@ -20,7 +21,9 @@ export default function App() {
     <SafeAreaProvider>
       <ThemeProvider>
         <SettingsProvider>
-          <Root />
+          <ParkingDataProvider>
+            <Root />
+          </ParkingDataProvider>
         </SettingsProvider>
       </ThemeProvider>
     </SafeAreaProvider>

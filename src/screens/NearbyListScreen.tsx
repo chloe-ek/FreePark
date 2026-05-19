@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, ActivityIndicator,
@@ -6,13 +6,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSettings } from '../contexts/SettingsContext';
-import { useLocation } from '../hooks/useLocation';
-import { useNearbyMeters } from '../hooks/useNearbyMeters';
-import { useNearbyDisabilityParking } from '../hooks/useNearbyDisabilityParking';
-import { useNearbyMotorcycleParking } from '../hooks/useNearbyMotorcycleParking';
-import { useNearbyEvCharging } from '../hooks/useNearbyEvCharging';
-import { TabBar, TabName } from '../components/TabBar';
-import { getMeterTier, TIER_COLORS } from '../components/MeterMarker';
+import { useParkingData } from '../contexts/ParkingDataContext';
+import { TabBar, TabName } from '../components/ui/TabBar';
+import { getMeterTier, TIER_COLORS } from '../components/markers/MeterMarker';
 import { LAYER_COLORS, LAYER_LABELS, LayerKind } from '../constants/layers';
 import { NearbyMeterResult, DisabilityParkingResult, MotorcycleParkingResult, EvChargingResult } from '../types/database';
 import {
@@ -62,20 +58,16 @@ export function NearbyListScreen({ onNavigate, onSelectMeter }: Props) {
   const { theme } = useTheme();
   const { settings } = useSettings();
   const insets = useSafeAreaInsets();
-  const { latitude, longitude } = useLocation();
+  const { meters, accessibleSpots: accSpots, motoSpots, evStations, anyLoading: loading, anyError, fetchLayerIfNeeded, locationKey } = useParkingData();
   const { bg, surface, border, text, text2, text3 } = theme.colors;
 
   const [sortBy, setSortBy] = useState<SortKey>('rate');
   const [activeKind, setActiveKind] = useState<LayerKind>('meter');
   const [paymentFilter, setPaymentFilter] = useState<'any' | 'card' | 'cash'>('any');
 
-  const { meters, loading: loadingMeters, error: metersError }          = useNearbyMeters(latitude, longitude, settings.radiusMeters, activeKind === 'meter');
-  const { spots: accSpots, loading: loadingAcc, error: accError }       = useNearbyDisabilityParking(latitude, longitude, settings.radiusMeters, activeKind === 'disability');
-  const { spots: motoSpots, loading: loadingMoto, error: motoError }    = useNearbyMotorcycleParking(latitude, longitude, settings.radiusMeters, activeKind === 'motorcycle');
-  const { stations: evStations, loading: loadingEv, error: evError }    = useNearbyEvCharging(latitude, longitude, settings.radiusMeters, activeKind === 'ev');
-
-  const loading  = loadingMeters || loadingAcc || loadingMoto || loadingEv;
-  const anyError = metersError || accError || motoError || evError;
+  useEffect(() => {
+    fetchLayerIfNeeded(activeKind);
+  }, [activeKind, locationKey, fetchLayerIfNeeded]);
 
   const combined = useMemo<AnySpot[]>(() => {
     let all: AnySpot[];
