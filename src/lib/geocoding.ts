@@ -42,7 +42,7 @@ export async function searchPlaces(query: string): Promise<PlaceCandidate[]> {
       if (__DEV__) console.warn('[geocoding] searchPlaces API error:', json.status);
       return [];
     }
-    return (json.predictions as PredictionResult[]).map((p) => ({
+    return ((json.predictions ?? []) as PredictionResult[]).map((p) => ({
       placeId: p.place_id,
       name: p.structured_formatting.main_text,
       sub: p.structured_formatting.secondary_text,

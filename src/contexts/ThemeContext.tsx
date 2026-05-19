@@ -34,7 +34,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       const next = prev === null
         ? (scheme === 'dark' ? 'light' : 'dark')
         : (prev === 'dark' ? 'light' : 'dark');
-      AsyncStorage.setItem(STORAGE_KEYS.THEME, next);
+      AsyncStorage.setItem(STORAGE_KEYS.THEME, next).catch(() => {});
       return next;
     });
   }

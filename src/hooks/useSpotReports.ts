@@ -108,7 +108,7 @@ export function useSpotReports(meterIds: string[]) {
         return false;
       }
       reportCooldowns.set(meterId, Date.now());
-      persistCooldowns();
+      persistCooldowns().catch(() => {});
       return true;
     } catch (err) {
       if (__DEV__) console.warn('[spot_reports] Unexpected error:', err);

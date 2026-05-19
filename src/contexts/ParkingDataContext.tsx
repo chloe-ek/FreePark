@@ -150,13 +150,21 @@ export function ParkingDataProvider({ children }: { children: React.ReactNode })
 
     setLayerData(prev => ({ ...prev, [layer]: { ...prev[layer], loading: true, error: null } }));
 
-    callRpc<never>(LAYER_RPC[layer], args).then(({ data, error }) => {
-      if (fetchIdRef.current[layer] !== myId) return;
-      setLayerData(prev => ({
-        ...prev,
-        [layer]: { data: data ?? [], loading: false, error: error?.message ?? null },
-      }));
-    });
+    callRpc<never>(LAYER_RPC[layer], args)
+      .then(({ data, error }) => {
+        if (fetchIdRef.current[layer] !== myId) return;
+        setLayerData(prev => ({
+          ...prev,
+          [layer]: { data: data ?? [], loading: false, error: error?.message ?? null },
+        }));
+      })
+      .catch(() => {
+        if (fetchIdRef.current[layer] !== myId) return;
+        setLayerData(prev => ({
+          ...prev,
+          [layer]: { ...prev[layer], loading: false, error: 'Network error' },
+        }));
+      });
   }, []);
 
   return (

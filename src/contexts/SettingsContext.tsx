@@ -42,7 +42,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!loaded) return;
-    AsyncStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
+    AsyncStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings)).catch(() => {});
   }, [settings, loaded]);
 
   return (
