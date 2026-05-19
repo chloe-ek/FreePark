@@ -8,7 +8,12 @@ export function useRecentSearches() {
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEYS.RECENT_SEARCHES).then((raw) => {
-      if (raw) setRecents(JSON.parse(raw));
+      if (!raw) return;
+      try {
+        setRecents(JSON.parse(raw));
+      } catch {
+        AsyncStorage.removeItem(STORAGE_KEYS.RECENT_SEARCHES);
+      }
     });
   }, []);
 
