@@ -36,18 +36,23 @@ export function useFetchNearby<T>(
     async function fetch() {
       setState({ data: [], loading: true, error: null });
 
-      const { data, error: rpcError } = await callRpc<T>(rpcName, {
-        user_lat: lat,
-        user_lng: lng,
-        radius_meters: radiusMeters,
-      });
+      try {
+        const { data, error: rpcError } = await callRpc<T>(rpcName, {
+          user_lat: lat,
+          user_lng: lng,
+          radius_meters: radiusMeters,
+        });
 
-      if (cancelled) return;
+        if (cancelled) return;
 
-      if (rpcError) {
-        setState({ data: [], loading: false, error: rpcError.message });
-      } else {
-        setState({ data: data ?? [], loading: false, error: null });
+        if (rpcError) {
+          setState({ data: [], loading: false, error: rpcError.message });
+        } else {
+          setState({ data: data ?? [], loading: false, error: null });
+        }
+      } catch {
+        if (cancelled) return;
+        setState({ data: [], loading: false, error: 'Network error' });
       }
     }
 

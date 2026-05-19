@@ -22,6 +22,7 @@ jest.mock('../../lib/supabase', () => {
   const state = {
     fetchData:         [],
     fetchError:        null,
+    fetchShouldThrow:  false,
     insertError:       null,
     insertShouldThrow: false,
     realtimeCallback:  null,
@@ -33,9 +34,10 @@ jest.mock('../../lib/supabase', () => {
         select: jest.fn().mockReturnValue({
           in: jest.fn().mockReturnValue({
             gt: jest.fn().mockReturnValue({
-              order: jest.fn().mockImplementation(() =>
-                Promise.resolve({ data: state.fetchData, error: state.fetchError }),
-              ),
+              order: jest.fn().mockImplementation(() => {
+                if (state.fetchShouldThrow) throw new Error('network timeout');
+                return Promise.resolve({ data: state.fetchData, error: state.fetchError });
+              }),
             }),
           }),
         }),
@@ -59,6 +61,7 @@ jest.mock('../../lib/supabase', () => {
 function getMockState(): {
   fetchData:         any[];
   fetchError:        any;
+  fetchShouldThrow:  boolean;
   insertError:       any;
   insertShouldThrow: boolean;
   realtimeCallback:  ((payload: any) => void) | null;
@@ -99,6 +102,7 @@ beforeEach(() => {
   const s = getMockState();
   s.fetchData         = [];
   s.fetchError        = null;
+  s.fetchShouldThrow  = false;
   s.insertError       = null;
   s.insertShouldThrow = false;
   s.realtimeCallback  = null;
@@ -388,5 +392,36 @@ describe('purge interval (every 60 s)', () => {
 
     expect(result.current.getReport('PURGE-KEEP')).toBeDefined();
     jest.useRealTimers();
+  });
+});
+
+// ── fetchActive error handling ────────────────────────────────────────────────
+
+describe('fetchActive — network error handling', () => {
+  test('hook stays functional when fetchActive throws (does not crash)', async () => {
+    getMockState().fetchShouldThrow = true;
+
+    // Before the fix this would cause an unhandled promise rejection and
+    // potentially crash the test / the app. Now it's swallowed silently.
+    const { result } = renderHook(() => useSpotReports(['FA-THROW']));
+
+    // Hook is still usable — getReport and submitReport work normally
+    expect(result.current.getReport('FA-THROW')).toBeUndefined();
+
+    getMockState().fetchShouldThrow = false;
+    let ok!: boolean;
+    await act(async () => { ok = await result.current.submitReport('FA-THROW', 'no_vacancy'); });
+    expect(ok).toBe(true);
+  });
+
+  test('reports list stays empty (not stale data) when fetchActive throws', async () => {
+    getMockState().fetchShouldThrow = true;
+
+    const { result } = renderHook(() => useSpotReports(['FA-EMPTY']));
+
+    // Wait a tick for the async fetchActive to complete (and throw)
+    await act(async () => {});
+
+    expect(result.current.getReport('FA-EMPTY')).toBeUndefined();
   });
 });
