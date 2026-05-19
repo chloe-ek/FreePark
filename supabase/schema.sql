@@ -244,7 +244,7 @@ create table if not exists public.spot_reports (
   meter_id      text        not null references public.parking_meters (meter_id) on delete cascade,
   report_type   text        not null check (report_type in ('no_vacancy')),
   reported_at   timestamptz not null default now(),
-  expires_at    timestamptz not null default now() + interval '5 minutes'
+  expires_at    timestamptz not null default now() + interval '1 hour'
 );
 
 create index if not exists spot_reports_meter_id_expires_idx

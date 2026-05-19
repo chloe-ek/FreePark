@@ -1,7 +1,8 @@
 export const STORAGE_KEYS = {
-  SETTINGS:        '@freepark_settings',
-  THEME:           '@freepark_theme',
-  RECENT_SEARCHES: '@freepark_recent_searches',
+  SETTINGS:         '@freepark_settings',
+  THEME:            '@freepark_theme',
+  RECENT_SEARCHES:  '@freepark_recent_searches',
+  REPORT_COOLDOWNS: '@freepark_report_cooldowns',
 } as const;
 
 export const RECENT_SEARCHES_MAX = 8;
