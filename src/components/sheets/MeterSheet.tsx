@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { navigateTo } from '../utils/navigation';
-import { useTheme } from '../contexts/ThemeContext';
-import { Badge } from './Badge';
-import { NearbyMeterResult } from '../types/database';
+import { navigateTo } from '../../utils/navigation';
+import { useTheme } from '../../contexts/ThemeContext';
+import { Badge } from '../ui/Badge';
+import { NearbyMeterResult } from '../../types/database';
 import {
   isMeterFreeNow,
   isMeterProhibited,
@@ -12,10 +12,10 @@ import {
   minutesUntilFree,
   formatMinutes,
   getRushHours,
-} from '../utils/parkingUtils';
-import { SpotReport } from '../hooks/useSpotReports';
+} from '../../utils/parkingUtils';
+import { SpotReport } from '../../hooks/useSpotReports';
 import { BottomSheet, InfoGrid, RushHourBanner } from './BottomSheet';
-import { getMeterTier, TIER_COLORS } from './MeterMarker';
+import { getMeterTier, TIER_COLORS } from '../markers/MeterMarker';
 
 function timeAgo(iso: string): string {
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);

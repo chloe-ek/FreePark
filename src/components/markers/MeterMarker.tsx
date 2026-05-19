@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Marker } from 'react-native-maps';
-import type { NearbyMeterResult } from '../types/database';
+import type { NearbyMeterResult } from '../../types/database';
 import {
   isMeterFreeNow,
   isMeterProhibited,
   getCurrentRate,
-} from '../utils/parkingUtils';
-import { GREEN } from '../theme';
+} from '../../utils/parkingUtils';
+import { GREEN } from '../../theme';
 
 interface Props {
   meter: NearbyMeterResult;

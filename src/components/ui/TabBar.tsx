@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme } from '../contexts/ThemeContext';
-import { GREEN } from '../theme';
+import { useTheme } from '../../contexts/ThemeContext';
+import { GREEN } from '../../theme';
 
 export type TabName = 'map' | 'nearby' | 'settings';
 

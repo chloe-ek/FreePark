@@ -4,7 +4,7 @@ import { EntryScreen } from '../screens/EntryScreen';
 import { MapScreen } from '../screens/MapScreen';
 import { NearbyListScreen } from '../screens/NearbyListScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
-import { TabName } from '../components/TabBar';
+import { TabName } from '../components/ui/TabBar';
 import { NearbyMeterResult } from '../types/database';
 
 type Phase = 'entry' | 'main';

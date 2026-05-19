@@ -1,7 +1,7 @@
 import React from 'react';
-import type { DisabilityParkingResult } from '../types/database';
+import type { DisabilityParkingResult } from '../../types/database';
 import { PinMarker } from './PinMarker';
-import { LAYER_COLORS } from '../constants/layers';
+import { LAYER_COLORS } from '../../constants/layers';
 
 interface Props {
   spot: DisabilityParkingResult;

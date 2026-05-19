@@ -5,12 +5,12 @@ import {
 } from 'react-native';
 
 const IS_IOS = Platform.OS === 'ios';
-import { useTheme } from '../contexts/ThemeContext';
-import { SUGGESTIONS, Suggestion } from '../data/suggestions';
-import { searchPlaces, getPlaceCoords, ResolvedPlace } from '../lib/geocoding';
-import { useRecentSearches } from '../hooks/useRecentSearches';
-import { GREEN } from '../theme';
-import { SEARCH_CONFIG } from '../constants/search';
+import { useTheme } from '../../contexts/ThemeContext';
+import { SUGGESTIONS, Suggestion } from '../../data/suggestions';
+import { searchPlaces, getPlaceCoords, ResolvedPlace } from '../../lib/geocoding';
+import { useRecentSearches } from '../../hooks/useRecentSearches';
+import { GREEN } from '../../theme';
+import { SEARCH_CONFIG } from '../../constants/search';
 
 interface SearchResultRowProps {
   icon: React.ReactNode;

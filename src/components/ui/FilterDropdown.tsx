@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { useTheme } from '../contexts/ThemeContext';
-import { GREEN } from '../theme';
+import { useTheme } from '../../contexts/ThemeContext';
+import { GREEN } from '../../theme';
 
 export interface DropdownOption<T> {
   value: T;

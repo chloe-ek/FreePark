@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { AppIcon } from '../components/AppIcon';
+import { AppIcon } from '../components/ui/AppIcon';
 import { GREEN, LIGHT_THEME } from '../theme';
 
 interface Props {

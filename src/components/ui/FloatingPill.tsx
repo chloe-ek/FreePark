@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { GREEN } from '../theme';
+import { GREEN } from '../../theme';
 
 interface Props {
   freeCount: number;

@@ -6,7 +6,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSettings } from '../contexts/SettingsContext';
-import { TabBar, TabName } from '../components/TabBar';
+import { TabBar, TabName } from '../components/ui/TabBar';
 import { GREEN } from '../theme';
 import { version } from '../../package.json';
 
