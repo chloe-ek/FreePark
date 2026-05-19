@@ -80,7 +80,7 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
     if (queryLat == null || queryLng == null || !isInsideVancouver(queryLat, queryLng)) return null;
     switch (activeLayer) {
       case 'meter':
-        if (metersLoading) return null;
+        if (metersLoading || metersError) return null;
         if (meters.length > 0 && visibleMeters.length === 0) return 'filters';
         return meters.length === 0 ? 'area' : null;
       case 'disability': return accessibleSpots.length === 0 ? 'area' : null;
@@ -89,7 +89,7 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
         return motoSpots.length === 0 ? 'area' : null;
       case 'ev': return evStations.length === 0 ? 'area' : null;
     }
-  }, [activeLayer, meters, visibleMeters, accessibleSpots, motoSpots, visibleMotoSpots, evStations, metersLoading, queryLat, queryLng]);
+  }, [activeLayer, meters, visibleMeters, accessibleSpots, motoSpots, visibleMotoSpots, evStations, metersLoading, metersError, queryLat, queryLng]);
 
   function animateToMarker(lat: number, lng: number) {
     if (!mapReadyRef.current) { pendingFocusRef.current = { lat, lng }; return; }
@@ -208,7 +208,7 @@ export function MapScreen({ onNavigate, pendingFocusMeter, onClearFocus }: Props
           ref={mapRef}
           style={StyleSheet.absoluteFill}
           provider={PROVIDER_GOOGLE}
-          customMapStyle={theme.scheme === 'dark' ? DARK_MAP_STYLE : undefined}
+          customMapStyle={theme.scheme === 'dark' ? DARK_MAP_STYLE : []}
           showsUserLocation
           showsMyLocationButton={false}
           onMapReady={handleMapReady}
