@@ -33,7 +33,7 @@ export function useFetchNearby<T>(
     const lng = longitude;
     let cancelled = false;
 
-    async function fetch() {
+    async function doFetch() {
       setState({ data: [], loading: true, error: null });
 
       try {
@@ -56,7 +56,7 @@ export function useFetchNearby<T>(
       }
     }
 
-    fetch();
+    doFetch();
     return () => { cancelled = true; };
   }, [rpcName, latitude, longitude, radiusMeters, enabled]);
 
