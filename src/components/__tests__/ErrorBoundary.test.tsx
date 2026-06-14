@@ -23,30 +23,13 @@ describe('ErrorBoundary', () => {
   });
 
   test('shows error UI when a child throws during render', () => {
-    const { getByText } = render(
+    const { getByText, queryByText } = render(
       <ErrorBoundary>
         <Bomb shouldThrow />
       </ErrorBoundary>,
     );
     expect(getByText('Something went wrong')).toBeTruthy();
     expect(getByText('Please restart the app.')).toBeTruthy();
-    expect(getByText('Try again')).toBeTruthy();
-  });
-
-  test('"Try again" button resets the boundary and re-renders children', () => {
-    const { getByText, queryByText } = render(
-      <ErrorBoundary>
-        <Bomb shouldThrow />
-      </ErrorBoundary>,
-    );
-
-    expect(getByText('Something went wrong')).toBeTruthy();
-
-    fireEvent.press(getByText('Try again'));
-
-    // After reset, error UI is gone (children re-render — Bomb still throws,
-    // so it'll immediately error again, but the reset itself is proven by
-    // the button being pressable and getDerivedStateFromError firing again)
-    expect(queryByText('Something went wrong')).toBeTruthy(); // re-entered error state
+    expect(queryByText('Try again')).toBeNull();
   });
 });

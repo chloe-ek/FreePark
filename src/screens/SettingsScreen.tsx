@@ -8,8 +8,6 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { OnboardingModal } from '../components/OnboardingModal';
 import { TabBar, TabName } from '../components/ui/TabBar';
-import { STORAGE_KEYS } from '../constants/storage';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GREEN } from '../theme';
 import { version } from '../../package.json';
 
