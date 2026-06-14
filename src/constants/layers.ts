@@ -8,7 +8,7 @@ export const LAYER_COLORS: Record<LayerKind, string> = {
 } as const;
 
 export const LAYER_LABELS: Record<LayerKind, string> = {
-  meter:      'P',
+  meter:      '🅿️',
   disability: '♿',
   motorcycle: '🏍',
   ev:         '⚡',

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView,
   StyleSheet, Animated,
@@ -6,7 +6,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSettings } from '../contexts/SettingsContext';
+import { OnboardingModal } from '../components/OnboardingModal';
 import { TabBar, TabName } from '../components/ui/TabBar';
+import { STORAGE_KEYS } from '../constants/storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GREEN } from '../theme';
 import { version } from '../../package.json';
 
@@ -19,6 +22,7 @@ export function SettingsScreen({ onNavigate }: Props) {
   const { settings, setRadiusMeters } = useSettings();
   const insets = useSafeAreaInsets();
   const { bg2, surface, border, text, text2, text3 } = theme.colors;
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   return (
     <View style={[styles.container, { backgroundColor: bg2 }]}>
@@ -67,6 +71,12 @@ export function SettingsScreen({ onNavigate }: Props) {
           </View>
         </View>
 
+        {/* Help */}
+        <SectionLabel label="Help" color={text3} />
+        <SettingsGroup surface={surface} border={border}>
+          <TappableRow icon="?" label="How to use" surface={surface} border={border} text={text} onPress={() => setShowOnboarding(true)} />
+        </SettingsGroup>
+
         {/* About */}
         <SectionLabel label="About" color={text3} />
         <SettingsGroup surface={surface} border={border}>
@@ -95,6 +105,13 @@ export function SettingsScreen({ onNavigate }: Props) {
       </ScrollView>
 
       <TabBar active="settings" onNavigate={onNavigate} />
+
+      <OnboardingModal
+        visible={showOnboarding}
+        variant="manual"
+        onClose={() => setShowOnboarding(false)}
+        onDismiss={() => setShowOnboarding(false)}
+      />
     </View>
   );
 }
@@ -136,6 +153,20 @@ function SettingsRow({ icon, label, children, surface, border, text, divider }: 
       <Text style={[styles.rowLabel, { color: text }]}>{label}</Text>
       {children}
     </View>
+  );
+}
+
+function TappableRow({ icon, label, surface, border, text, onPress }: Omit<RowProps, 'children' | 'divider'> & { onPress: () => void }) {
+  return (
+    <TouchableOpacity
+      style={[styles.row, { backgroundColor: surface }]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      {icon != null && <Text style={[styles.rowIcon, { color: GREEN }]}>{icon}</Text>}
+      <Text style={[styles.rowLabel, { color: text }]}>{label}</Text>
+      <Text style={{ color: border, fontSize: 18 }}>›</Text>
+    </TouchableOpacity>
   );
 }
 
