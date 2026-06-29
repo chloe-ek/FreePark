@@ -5,7 +5,7 @@
 ![CI](https://github.com/chloe-ek/FreePark/actions/workflows/ci.yml/badge.svg)
 &nbsp;
 ![App Store](https://img.shields.io/badge/App_Store-under_review-lightgrey?logo=apple)
-![Google Play](https://img.shields.io/badge/Google_Play-under_review-lightgrey?logo=google-play)
+![Google Play](https://img.shields.io/badge/Google_Play-available-brightgreen?logo=google-play&logoColor=white)
 
 <p align="center">
   <img src="assets/final.png" alt="FreePark app screenshots" width="100%">
