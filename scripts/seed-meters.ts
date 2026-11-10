@@ -13,6 +13,9 @@ if (!supabaseUrl || !serviceRoleKey) {
 
 const supabase = createClient(supabaseUrl, serviceRoleKey);
 
+// Abort stale-meter cleanup if more than this share of live meters would be marked removed
+const MAX_STALE_RATIO = 0.2;
+
 interface VancouverMeter {
   meter_id: string;
   geo_point_2d: { lat: number; lon: number };
@@ -138,7 +141,7 @@ async function seed() {
   const meters = await fetchAllMeters();
   console.log(`Fetched ${meters.length} meters.`);
 
-  const rows = meters
+  const mapped = meters
     .filter((m) => !m.vehicle_type || m.vehicle_type.trim() === 'Any Vehicle')
     .map((m) => {
     const rate9to6  = parseRate(m.rate_9am_6pm);
@@ -187,17 +190,37 @@ async function seed() {
     };
   });
 
+  // Open Data reuses a meter_id when a meter is replaced (old row 'Removed', new row
+  // 'In Service'). Keep one row per meter_id, preferring the most active one. Duplicates
+  // in one upsert batch would also fail with "ON CONFLICT DO UPDATE cannot affect row a second time".
+  const STATUS_RANK = { active: 0, inactive: 1, removed: 2 };
+  const byId = new Map<string, (typeof mapped)[number]>();
+  for (const row of mapped) {
+    const prev = byId.get(row.meter_id);
+    if (!prev || STATUS_RANK[row.service_status] <= STATUS_RANK[prev.service_status]) {
+      byId.set(row.meter_id, row);
+    }
+  }
+  const rows = [...byId.values()];
+  if (rows.length < mapped.length) {
+    console.log(`Collapsed ${mapped.length - rows.length} duplicate meter_id row(s).`);
+  }
+
   let failed = 0;
+  let syncStartedAt: string | null = null;
   for (let i = 0; i < rows.length; i += 500) {
     const batch = rows.slice(i, i + 500);
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("parking_meters")
-      .upsert(batch, { onConflict: "meter_id" });
+      .upsert(batch, { onConflict: "meter_id" })
+      .select("updated_at");
 
     if (error) {
       console.error(`Batch ${i / 500 + 1} failed:`, error.message);
       failed += batch.length;
     } else {
+      // DB time of the first batch = start of this sync (set_updated_at trigger)
+      if (i === 0) syncStartedAt = data[0].updated_at;
       console.log(`Upserted batch ${i / 500 + 1} (${batch.length} rows)`);
     }
   }
@@ -205,6 +228,45 @@ async function seed() {
   if (failed > 0) {
     throw new Error(`Done with ${failed} row(s) failed.`);
   }
+  if (!syncStartedAt) {
+    throw new Error("No meters upserted — refusing to mark stale meters.");
+  }
+
+  // Meters not touched by this sync (dropped from Open Data or filtered out above)
+  // are marked removed, not deleted: deleting would cascade to spot_reports, and
+  // the next sync revives them if they reappear.
+  const { count: staleCount, error: staleCountError } = await supabase
+    .from("parking_meters")
+    .select("meter_id", { count: "exact", head: true })
+    .lt("updated_at", syncStartedAt)
+    .neq("service_status", "removed");
+  const { count: liveCount, error: liveCountError } = await supabase
+    .from("parking_meters")
+    .select("meter_id", { count: "exact", head: true })
+    .neq("service_status", "removed");
+
+  if (staleCountError || liveCountError || staleCount == null || !liveCount) {
+    throw new Error(`Counting stale meters failed: ${(staleCountError ?? liveCountError)?.message}`);
+  }
+  // Guard against Open Data silently returning partial data
+  const staleRatio = staleCount / liveCount;
+  if (staleRatio > MAX_STALE_RATIO) {
+    throw new Error(
+      `${staleCount}/${liveCount} meters (${(staleRatio * 100).toFixed(1)}%) would be marked removed, ` +
+      `above the ${MAX_STALE_RATIO * 100}% limit — skipping cleanup.`,
+    );
+  }
+
+  const { count, error: staleError } = await supabase
+    .from("parking_meters")
+    .update({ service_status: "removed" }, { count: "exact" })
+    .lt("updated_at", syncStartedAt)
+    .neq("service_status", "removed");
+
+  if (staleError) {
+    throw new Error(`Marking stale meters failed: ${staleError.message}`);
+  }
+  console.log(`Marked ${count ?? 0} stale meter(s) as removed.`);
   console.log("Done.");
 }
 
