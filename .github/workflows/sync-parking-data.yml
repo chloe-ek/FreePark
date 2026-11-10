@@ -25,6 +25,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Seed motorcycle parking
+        if: ${{ !cancelled() }}
         run: npx tsx scripts/seed-motorcycle-parking.ts
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

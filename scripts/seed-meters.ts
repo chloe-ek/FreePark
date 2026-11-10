@@ -203,10 +203,9 @@ async function seed() {
   }
 
   if (failed > 0) {
-    console.warn(`Done with ${failed} row(s) failed.`);
-  } else {
-    console.log("Done.");
+    throw new Error(`Done with ${failed} row(s) failed.`);
   }
+  console.log("Done.");
 }
 
-seed().catch(console.error);
+seed().catch((e) => { console.error(e); process.exit(1); });
